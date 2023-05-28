@@ -2,7 +2,7 @@ from cryptography.hazmat.primitives import hashes
 
 
 def sha1_hash(message):
-    # Create a SHA-1 hash object
+    # Create an SHA-1 hash object
     sha1_hasher = hashes.Hash(hashes.SHA1())
 
     # Convert the message to bytes if needed

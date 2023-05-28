@@ -29,7 +29,8 @@ class DSSEncryptorDecryptor:
         )
         return signature
 
-    def verify(self, message, signature, public_key):
+    @staticmethod
+    def verify(message, signature, public_key):
         # Load the provided public key
         loaded_public_key = serialization.load_pem_public_key(
             public_key,

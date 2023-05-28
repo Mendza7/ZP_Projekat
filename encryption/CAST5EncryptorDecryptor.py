@@ -28,9 +28,10 @@ class CAST5EncryptorDecryptor:
         # Return the IV and ciphertext
         return iv + ciphertext
 
-    def decrypt(self, ciphertext, iv):
+    @staticmethod
+    def decrypt(ciphertext, iv, key):
         # Create a CAST5 cipher object with CBC mode and the provided key
-        cipher = Cipher(algorithms.CAST5(self.key), modes.CBC(iv), backend=default_backend())
+        cipher = Cipher(algorithms.CAST5(key), modes.CBC(iv), backend=default_backend())
 
         # Create a decryptor object
         decryptor = cipher.decryptor()
