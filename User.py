@@ -6,7 +6,7 @@ from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
 
 class User:
-    def __init__(self, name, email=None, algorithm=None, key_size=1024, password=''):
+    def __init__(self, name=None, email=None, algorithm=None, key_size=1024, password=''):
         private_key= None
         public_key=None
         if(algorithm=='rsa'):
@@ -58,13 +58,12 @@ class User:
     @staticmethod
     def generate_key_id(public_key):
         if public_key is not None:
-            public_bytes = public_key.public_bytes(encoding=serialization.Encoding.PEM,
-                                                   format=serialization.PublicFormat.SubjectPublicKeyInfo)
-            print(public_bytes)
-            pem_lines = public_bytes.splitlines()
-            key_data = b"".join(pem_lines[1:-1])
+            modulus = public_key.public_numbers().n
 
-            # Extract the smallest 64 bits from the key data
-            smallest_64_bits = key_data[-8:]
-            print(smallest_64_bits)
-            return int.from_bytes(smallest_64_bits, byteorder='big')
+            # Mask to get the least significant 64 bits
+            mask = (1 << 64) - 1
+
+            # Extract the least significant 64 bits by performing bitwise AND with the mask
+            least_significant_64_bits = modulus & mask
+            print(least_significant_64_bits)
+            return least_significant_64_bits

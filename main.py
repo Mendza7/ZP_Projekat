@@ -1,7 +1,7 @@
 import random
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from cryptography.hazmat.backends import default_backend
@@ -9,14 +9,128 @@ import re
 import os
 import base64
 
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+
 from User import User
 from exportKey import ExportDialog
-from importKey import ImportDialog
 
 #All users
 
 users={"default":None,}
 i = 0
+
+class ImportDialog(tk.Toplevel):
+    def __init__(self, parent, users):
+        super().__init__(parent)
+        self.users = users
+        self.users["New User"] = None
+        self.title("Import RSA Keys")
+
+        self.user_var = tk.StringVar(self)
+        self.user_var.set('default')
+
+        self.key_type_var = tk.StringVar(self)
+        self.key_type_var.set('Private Key')
+
+        user_label = tk.Label(self, text="Select User:")
+        user_label.pack()
+
+        user_menu = tk.OptionMenu(self, self.user_var, *users)
+        user_menu.pack()
+
+        key_type_label = tk.Label(self, text="Select Key Type:")
+        key_type_label.pack()
+
+        private_key_button = tk.Radiobutton(self, text="Private Key", variable=self.key_type_var, value="Private Key")
+        private_key_button.pack()
+
+        public_key_button = tk.Radiobutton(self, text="Public Key", variable=self.key_type_var, value="Public Key")
+        public_key_button.pack()
+
+        import_button = tk.Button(self, text="Import", command=self.import_key)
+        import_button.pack()
+
+        self.parent = parent
+
+    def import_key(self):
+        global users
+        selected_user = self.user_var.get()
+
+        if not selected_user:
+            messagebox.showwarning("Warning", "Please select a user.")
+            return
+        selected_key_type = self.key_type_var.get()
+
+        if not selected_key_type:
+            messagebox.showwarning("Warning", "Please select a key type.")
+            return
+
+        user = self.users[selected_user]
+
+        if selected_user == 'default':
+            key_size = 1024
+            name = ''
+            password = ''
+            while len(name) < 1:
+                name = simpledialog.askstring("Name", "Enter your name:")
+
+            email = simpledialog.askstring("Email", "Enter your email:")
+            while key_size not in [1024, 2048]:
+                if (key_size == None):
+                    messagebox.showerror("Exiting, please try again!")
+                    return
+                key_size = simpledialog.askinteger("Key Size", "Enter key size (1024 or 2048):", minvalue=1024,
+                                                   maxvalue=2048)
+            while len(password) < 1:
+                password = simpledialog.askstring("Password",
+                                                  "Enter a password of at least 1 character in length to protect your private key:",
+                                                  show="*")
+            user = User(name=name, email=email, algorithm='rsa', key_size=key_size, password=password)
+            users[email] = user
+
+        file_path = filedialog.askopenfilename(defaultextension=".pem", filetypes=[("PEM Files", "*.pem")])
+        if file_path:
+            with open(file_path, "rb") as pem_file:
+                pem_data = pem_file.read()
+
+            try:
+                if selected_key_type == "Private Key":
+                    password = simpledialog.askstring("Password", "Enter the password for the private key:", show="*")
+                    private_key = self.load_private_key_with_password(pem_data, password)
+                    if private_key is not None:
+                        user.set_private_key(private_key)
+                        messagebox.showinfo("Success", f"{selected_key_type} for {selected_user} imported successfully.")
+                    else:
+                        messagebox.showerror("Error", "Incorrect password or invalid key file.")
+                else:
+                    public_key = serialization.load_pem_public_key(pem_data)
+                    user.set_public_key(public_key)
+                    messagebox.showinfo("Success", f"{selected_key_type} for {selected_user} imported successfully.")
+            except (ValueError, TypeError) as e:
+                messagebox.showerror("Error", "Failed to import key. Invalid file or key format.")
+
+        self.destroy()
+
+    def load_private_key_with_password(self, pem_data, password):
+        password_provided = password.encode()
+        salt = b'SomeRandomSalt'  # Replace with your own salt
+
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,  # Adjust the number of iterations as per your requirement
+            backend=default_backend()
+        )
+
+        # Derive a key from the provided password and salt
+        key = kdf.derive(password_provided)
+
+        try:
+            private_key = serialization.load_pem_private_key(pem_data, password=key, backend=default_backend())
+            return private_key
+        except ValueError:
+            return None
 
 # Functions for key generation, import/export, encryption/decryption, and signing/verification
 def match_email_format(email):
@@ -30,7 +144,7 @@ def generate_key_pair():
     key_size=1024
     name = 'a' + str(i)
     email = f'a{i}@a.com'
-    password = 'i'*random.randint(2,10)
+    password = '123'
     i = i+1
     while len(name)<1:
         name = simpledialog.askstring("Name", "Enter your name:")
@@ -65,13 +179,21 @@ def open_export_dialog():
     root.wait_window(export_dialog)
 
 def display_key_ring():
-   pass
+    root = tk.Tk()
+    root.title('Keyring')
+    text_widget = tk.Text(root)
+    text_widget.pack()
 
-def send_message():
-    pass
+    for email, user in users.items():
+        if user is not None:
+            text_widget.insert(tk.END, f"Email: {email}\n")
+            text_widget.insert(tk.END, f"Key ID: {user.key_id}\n")
+            text_widget.insert(tk.END, "-------------------------\n")
+
+    root.mainloop()
 def receive_message():
     pass
-def create_new_window(root):
+def send_message(root):
 
     # New Toplevel window
     new_window = tk.Toplevel(root)
@@ -80,7 +202,9 @@ def create_new_window(root):
         new_window.destroy()
 
     # List of receivers
-    receivers = ['Person 1', 'Person 2', 'Person 3']
+    receivers = list({key: value for key, value in users.items() if value is not None})
+    if len(receivers) == 0:
+        return
 
     # Create from and to selection
     from_label = tk.Label(new_window, text="From:")
@@ -138,29 +262,29 @@ def save_file():
 
 
 # GUI layout and elements
+if __name__ == '__main__':
+    root = tk.Tk()
+    root.title("PGP Email Encryption")
 
-root = tk.Tk()
-root.title("PGP Email Encryption")
+    generate_key_button = tk.Button(root, text="Generate Key Pair", command=generate_key_pair)
+    generate_key_button.pack()
 
-generate_key_button = tk.Button(root, text="Generate Key Pair", command=generate_key_pair)
-generate_key_button.pack()
+    delete_key_button = tk.Button(root, text="Delete Key Pair", command=delete_key_pair)
+    delete_key_button.pack()
 
-delete_key_button = tk.Button(root, text="Delete Key Pair", command=delete_key_pair)
-delete_key_button.pack()
+    import_key_button = tk.Button(root, text="Import Key", command=open_import_dialog)
+    import_key_button.pack()
 
-import_key_button = tk.Button(root, text="Import Key", command=open_import_dialog)
-import_key_button.pack()
+    export_key_button = tk.Button(root, text="Export Key", command=open_export_dialog)
+    export_key_button.pack()
 
-export_key_button = tk.Button(root, text="Export Key", command=open_export_dialog)
-export_key_button.pack()
+    display_key_ring_button = tk.Button(root, text="Display Key Ring", command=display_key_ring)
+    display_key_ring_button.pack()
 
-display_key_ring_button = tk.Button(root, text="Display Key Ring", command=display_key_ring)
-display_key_ring_button.pack()
+    send_message_button = tk.Button(root, text="Send Message", command=lambda:send_message(root))
+    send_message_button.pack()
 
-send_message_button = tk.Button(root, text="Send Message", command=lambda:create_new_window(root))
-send_message_button.pack()
+    receive_message_button = tk.Button(root, text="Receive Message", command=receive_message)
+    receive_message_button.pack()
 
-receive_message_button = tk.Button(root, text="Receive Message", command=receive_message)
-receive_message_button.pack()
-
-root.mainloop()
+    root.mainloop()
