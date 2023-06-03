@@ -1,5 +1,6 @@
 import random
 import tkinter as tk
+from tkinter import ttk
 from tkinter import filedialog, messagebox, simpledialog
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -14,10 +15,11 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from User import User
 from exportKey import ExportDialog
 
-#All users
+# All users
 
-users={"default":None,}
+users = {"default": None, }
 i = 0
+
 
 class ImportDialog(tk.Toplevel):
     def __init__(self, parent, users):
@@ -99,7 +101,8 @@ class ImportDialog(tk.Toplevel):
                     private_key = self.load_private_key_with_password(pem_data, password)
                     if private_key is not None:
                         user.set_private_key(private_key)
-                        messagebox.showinfo("Success", f"{selected_key_type} for {selected_user} imported successfully.")
+                        messagebox.showinfo("Success",
+                                            f"{selected_key_type} for {selected_user} imported successfully.")
                     else:
                         messagebox.showerror("Error", "Incorrect password or invalid key file.")
                 else:
@@ -132,6 +135,7 @@ class ImportDialog(tk.Toplevel):
         except ValueError:
             return None
 
+
 # Functions for key generation, import/export, encryption/decryption, and signing/verification
 def match_email_format(email):
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -139,62 +143,150 @@ def match_email_format(email):
         return True
     else:
         return False
+
+
 def generate_key_pair():
     global i
-    key_size=1024
+    key_size = 1024
     name = 'a' + str(i)
+    # email = ""
+    # password = ""
     email = f'a{i}@a.com'
     password = '123'
-    i = i+1
-    while len(name)<1:
+    i = i + 1
+    while len(name) < 1:
         name = simpledialog.askstring("Name", "Enter your name:")
     while not match_email_format(email):
         email = simpledialog.askstring("Email", "Enter your email:")
-    while key_size not in [1024,2048]:
+    while key_size not in [1024, 2048]:
         if (key_size == None):
             messagebox.showerror("Exiting, please try again!")
             return
         key_size = simpledialog.askinteger("Key Size", "Enter key size (1024 or 2048):", minvalue=1024, maxvalue=2048)
-    while len(password)<1:
-        password = simpledialog.askstring("Password", "Enter a password of at least 1 character in length to protect your private key:", show="*")
+    while len(password) < 1:
+        password = simpledialog.askstring("Password",
+                                          "Enter a password of at least 1 character in length to protect your private key:",
+                                          show="*")
 
-    users[email] = User(name=name,email=email,algorithm='rsa',key_size=key_size,password=password)
+    users[email] = User(name=name, email=email, algorithm='rsa', key_size=key_size, password=password)
 
     print(users)
+
 
 def delete_key_pair():
     email = simpledialog.askstring("Email", "Enter the email associated with the key pair you want to delete:")
     if email in users:
         del users[email]
 
+
 def open_import_dialog():
     import_dialog = ImportDialog(root, users)
     import_dialog.transient(root)
     import_dialog.grab_set()
     root.wait_window(import_dialog)
+
+
 def open_export_dialog():
-    export_dialog = ExportDialog(root,users)
+    export_dialog = ExportDialog(root, users)
     export_dialog.transient(root)
     export_dialog.grab_set()
     root.wait_window(export_dialog)
 
-def display_key_ring():
+
+def display_private_key_ring():
+
     root = tk.Tk()
-    root.title('Keyring')
-    text_widget = tk.Text(root)
-    text_widget.pack()
+    root.title('Private Keyring')
+
+    tree = ttk.Treeview(root)
+    tree["columns"] = ("Timestamp", "Key ID", "Public Key", "Encrypted Private Key", "User ID")
+
+    tree.heading("Timestamp", text="Timestamp")
+    tree.heading("Key ID", text="Key ID")
+    tree.heading("Public Key", text="Public Key")
+    tree.heading("Encrypted Private Key", text="Encrypted Private Key")
+    tree.heading("User ID", text="User ID")
+
+    tree["show"] = "headings"
+    tree.grid(row=0, column=0, sticky="nsew")
+
+    scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+    scrollbar.grid(row=0, column=1, sticky="ns")
+
+    tree.configure(yscrollcommand=scrollbar.set)
+
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+    # tree.pack()
 
     for email, user in users.items():
         if user is not None:
-            text_widget.insert(tk.END, f"Email: {email}\n")
-            text_widget.insert(tk.END, f"Key ID: {user.key_id}\n")
-            text_widget.insert(tk.END, "-------------------------\n")
+            timestamp = user.timestamp
+            key_id = user.key_id
+            pem_pub = user.auth_pub.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
+            pem_priv = user.auth_priv.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.BestAvailableEncryption(user.priv_pass)
+            )
+            encrypted_private_key = ''.join(map(lambda a: a.decode('utf-8'), pem_priv.splitlines()[1:-1]))
 
+            tree.insert("", tk.END, values=(timestamp, key_id, public_key, encrypted_private_key, email))
+    tree.column("Public Key", width=100, anchor="w", stretch=True)
+    tree.column("Encrypted Private Key", width=300, anchor="w", stretch=True)
     root.mainloop()
+
+def display_public_key_ring():
+
+    root = tk.Tk()
+    root.title('Public Keyring')
+
+    tree = ttk.Treeview(root)
+    tree["columns"] = ("Timestamp", "Key ID", "Public Key", "User ID")
+
+    tree.heading("Timestamp", text="Timestamp")
+    tree.heading("Key ID", text="Key ID")
+    tree.heading("Public Key", text="Public Key")
+    tree.heading("User ID", text="User ID")
+
+    tree["show"] = "headings"
+
+    tree.grid(row=0, column=0, sticky="nsew")
+
+    scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+    scrollbar.grid(row=0, column=1, sticky="ns")
+
+    tree.configure(yscrollcommand=scrollbar.set)
+
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+
+    for email, user in users.items():
+        if user is not None:
+            timestamp = user.timestamp
+            key_id = user.key_id
+            pem_pub = user.auth_pub.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
+
+            tree.insert("", tk.END, values=(timestamp, key_id, public_key, email))
+    tree.column("Public Key", width=100, anchor="w", stretch=True)
+    root.mainloop()
+
+
+
+
 def receive_message():
     pass
-def send_message(root):
 
+
+def send_message(root):
     # New Toplevel window
     new_window = tk.Toplevel(root)
 
@@ -254,11 +346,10 @@ def send_message(root):
     save_button.pack()
     cancel_button.pack()
 
+
 def save_file():
     file_path = filedialog.asksaveasfilename()
     print("Saving to:", file_path)  # replace with actual saving logic
-
-
 
 
 # GUI layout and elements
@@ -278,10 +369,13 @@ if __name__ == '__main__':
     export_key_button = tk.Button(root, text="Export Key", command=open_export_dialog)
     export_key_button.pack()
 
-    display_key_ring_button = tk.Button(root, text="Display Key Ring", command=display_key_ring)
-    display_key_ring_button.pack()
+    display_private_key_ring_button = tk.Button(root, text="Display Private Key Ring", command=display_private_key_ring)
+    display_private_key_ring_button.pack()
 
-    send_message_button = tk.Button(root, text="Send Message", command=lambda:send_message(root))
+    display_public_key_ring_button = tk.Button(root, text="Display Public Key Ring", command=display_public_key_ring)
+    display_public_key_ring_button.pack()
+
+    send_message_button = tk.Button(root, text="Send Message", command=lambda: send_message(root))
     send_message_button.pack()
 
     receive_message_button = tk.Button(root, text="Receive Message", command=receive_message)

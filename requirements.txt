@@ -1,2 +1,2 @@
-base64
-zlib
+
+cryptography~=37.0.2
