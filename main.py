@@ -332,11 +332,14 @@ def receive_message():
             session = decrypt_session(data['session'])
             data['message'] = decrypt_with_session(encr_alg,data['message'],session['key'],session['iv'])
 
-        # if comp:
-        #     data = {
-        #         "session": session,
-        #         "message": decompress_data(message)
-        #     }
+        if compr:
+            data = {
+                "session": data['session'],
+                "message": decompress_data(data)
+            }
+        if auth:
+            pass
+        print(data)
 
 
 
@@ -454,7 +457,7 @@ def build_message_and_session(message, alg, receiver:User):
 def compress_data(signature, message):
     to_compress = {"signature":signature,
                    "message":message}
-    compressed = compress_string(json.dumps(to_compress))
+    compressed = format_bytes(compress_string(json.dumps(to_compress)))
     return compressed
 
 def convert_data(data):
@@ -462,7 +465,7 @@ def convert_data(data):
     return converted
 
 def decompress_data(final_message):
-    return json.loads(decompress_string(final_message["message"]))
+    return json.loads(decompress_string(return_to_original(final_message["message"])))
 
 
 def original_data(final_message):

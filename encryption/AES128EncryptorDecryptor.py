@@ -10,7 +10,7 @@ class AES128EncryptorDecryptor:
     def encrypt(plaintext,iv,key):
         # Create an AES cipher object with CBC mode and the provided key
         cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-
+        plaintext = plaintext.encode('utf-8')
         # Create an encryptor object
         encryptor = cipher.encryptor()
 
@@ -51,20 +51,18 @@ class AES128EncryptorDecryptor:
 
 if __name__=='__main__':
     # Example usage
-    key = b'0123456789abcdef'  # 16-byte key
-    iv = b'1234567890abcdef'  # 16-byte IV
+    iv,key = AES128EncryptorDecryptor.generate_iv_and_key()
 
     # Create an instance of AES128EncryptorDecryptor
-    encryptor_decryptor = AES128EncryptorDecryptor(key, iv)
 
     # Encrypt a plaintext
-    plaintext = b'This is the message to be encrypted.asdasdasdasd'
-    ciphertext = encryptor_decryptor.encrypt(plaintext)
+    plaintext = 'This is the message to be encrypted.asdasdasdasd'
+    ciphertext = AES128EncryptorDecryptor.encrypt(plaintext,key,iv)
 
     print("Plaintext:", plaintext)
     print("Ciphertext:", ciphertext)
 
     # Decrypt the ciphertext
-    decrypted_plaintext = AES128EncryptorDecryptor.decrypt(ciphertext[16:], ciphertext[:16], key)
+    decrypted_plaintext = AES128EncryptorDecryptor.decrypt(ciphertext,key,iv)
 
     print("Decrypted plaintext:", decrypted_plaintext)
