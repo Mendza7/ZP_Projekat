@@ -1,23 +1,25 @@
-import random
+import json
+import re
+import time
 import tkinter as tk
-from tkinter import ttk
+import warnings
 from tkinter import filedialog, messagebox, simpledialog
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa
+from tkinter import ttk
 
 from cryptography.hazmat.backends import default_backend
-import re
-import os
-import base64
-
+from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from User import User
+from compression.utils import *
+from encryption.AES128EncryptorDecryptor import AES128EncryptorDecryptor
+from encryption.CAST5EncryptorDecryptor import CAST5EncryptorDecryptor
 from exportKey import ExportDialog
 
 # All users
 
-users = {"default": None, }
+users = {}
+algs = ['AES', 'CAST']
 i = 0
 
 
@@ -29,7 +31,7 @@ class ImportDialog(tk.Toplevel):
         self.title("Import RSA Keys")
 
         self.user_var = tk.StringVar(self)
-        self.user_var.set('default')
+        self.user_var.set('New User')
 
         self.key_type_var = tk.StringVar(self)
         self.key_type_var.set('Private Key')
@@ -69,7 +71,7 @@ class ImportDialog(tk.Toplevel):
 
         user = self.users[selected_user]
 
-        if selected_user == 'default':
+        if selected_user == 'New User':
             key_size = 1024
             name = ''
             password = ''
@@ -194,7 +196,6 @@ def open_export_dialog():
 
 
 def display_private_key_ring():
-
     root = tk.Tk()
     root.title('Private Keyring')
 
@@ -217,7 +218,6 @@ def display_private_key_ring():
 
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(0, weight=1)
-    # tree.pack()
 
     for email, user in users.items():
         if user is not None:
@@ -240,8 +240,8 @@ def display_private_key_ring():
     tree.column("Encrypted Private Key", width=300, anchor="w", stretch=True)
     root.mainloop()
 
-def display_public_key_ring():
 
+def display_public_key_ring():
     root = tk.Tk()
     root.title('Public Keyring')
 
@@ -280,13 +280,57 @@ def display_public_key_ring():
     root.mainloop()
 
 
-
-
-def receive_message():
+def decrypt_with_session(param):
     pass
 
 
+def decrypt_session(session):
+    return {
+        "key_id"
+    }
+
+
+def receive_message():
+    file_path = filedialog.askopenfilename(defaultextension=".json", filetypes=[("JSON files", "*.json")])
+
+    with open(file_path, "r") as file:
+        data = json.load(file)
+        if not data['header']:
+            messagebox.showwarning("Warning", "invalid message format!")
+            return
+
+        header = data['header']
+        auth = header['auth']
+        encr = header['encr']
+        compr = header['compr']
+        conver = header['conver']
+        auth_alg = header['auth_alg']
+        encr_alg = header['encr_alg']
+
+        if conver:
+            data = {
+                "message": original_data(data)
+            }
+
+        if encr:
+            # session = decrypt_session(data['session'])
+            data['message'] = decrypt_with_session(data['message'])
+
+        # if comp:
+        #     data = {
+        #         "session": session,
+        #         "message": decompress_data(message)
+        #     }
+
+
+
+
+
+
 def send_message(root):
+    if not len(users.items()) > 0:
+        messagebox.showwarning("Warning", "No users! Please create a user")
+        return
     # New Toplevel window
     new_window = tk.Toplevel(root)
 
@@ -299,12 +343,22 @@ def send_message(root):
         return
 
     # Create from and to selection
-    from_label = tk.Label(new_window, text="From:")
+    auth_label = tk.Label(new_window, text="Authentication")
+    from_label = tk.Label(new_window, text="Sender's private key: ")
+    auth_label.pack()
     from_label.pack()
-    from_var = tk.StringVar(new_window)
-    from_var.set(receivers[0])  # default value
-    from_menu = tk.OptionMenu(new_window, from_var, *receivers)
-    from_menu.pack()
+    # Password input field
+
+    selected_sender = tk.StringVar(new_window)
+    selected_sender.set(receivers[0])  # default value
+    sender_menu = tk.OptionMenu(new_window, selected_sender, *senders)
+    sender_menu.pack()
+    auth_algorithm = users[selected_sender.get()].auth_alg
+
+    password_label = tk.Label(new_window, text="Private key password:")
+    password_label.pack()
+    password_field = tk.Entry(new_window, show='*')
+    password_field.pack()
 
     to_label = tk.Label(new_window, text="To:")
     to_label.pack()
@@ -313,15 +367,11 @@ def send_message(root):
     to_menu = tk.OptionMenu(new_window, to_var, *receivers)
     to_menu.pack()
 
-    # Input text field
-    input_field = tk.Entry(new_window)
-    input_field.pack()
-
     # Checkboxes
-    auth_var = tk.IntVar()
-    encr_var = tk.IntVar()
-    comp_var = tk.IntVar()
-    conv_var = tk.IntVar()
+    auth_var = tk.BooleanVar()
+    encr_var = tk.BooleanVar()
+    comp_var = tk.BooleanVar()
+    conv_var = tk.BooleanVar()
 
     auth_check = tk.Checkbutton(new_window, text="Auth", variable=auth_var)
     encr_check = tk.Checkbutton(new_window, text="Encryption", variable=encr_var)
@@ -333,23 +383,140 @@ def send_message(root):
     comp_check.pack()
     conv_check.pack()
 
-    # Password input field
-    password_label = tk.Label(new_window, text="Private key password:")
-    password_label.pack()
-    password_field = tk.Entry(new_window, show='*')  # hides input
-    password_field.pack()
+    # Encryption Algorithm
+
+    encr_alg_label = tk.Label(new_window, text="Encryption Algorithm")
+    encr_alg_label.pack()
+    encr_alg_var = tk.StringVar(new_window)
+    encr_alg_var.set(algs[0])  # default value
+    encr_alg_menu = tk.OptionMenu(new_window, encr_alg_var, *algs)
+    encr_alg_menu.pack()
+
+    # Message text field
+    input_label = tk.Label(new_window, text="Message: ")
+    input_label.pack()
+    input_field = tk.Entry(new_window)
+    input_field.pack()
 
     # Buttons for save and cancel
-    save_button = tk.Button(new_window, text="Save output", command=save_file)
+    save_button = tk.Button(new_window, text="Save file",
+                            command=lambda: save_file(auth_var.get(), encr_var.get(), comp_var.get(), conv_var.get(),
+                                                      auth_algorithm, encr_alg_var.get(), input_field.get(),
+                                                      selected_sender.get(), selected_receiver.get()))
     cancel_button = tk.Button(new_window, text="Cancel", command=cancel_action)
 
     save_button.pack()
     cancel_button.pack()
 
 
-def save_file():
+
+def build_message_and_session(message, alg, receiver:User):
+    if alg == algs[0]:
+        key_, iv_ = AES128EncryptorDecryptor.generate_iv_and_key()
+    elif alg == algs[1]:
+        key_, iv_ = CAST5EncryptorDecryptor.generate_iv_and_key()
+    else:
+        key_,iv_ = b'', b''
+
+    key = receiver.encrypt_public(format_bytes(key_))
+    iv = receiver.encrypt_public(format_bytes(iv_))
+
+    session = {
+        "key_id": receiver.key_id,
+        "key": format_bytes(key),
+        "iv": format_bytes(iv)
+    }
+
+    message = {
+        "timestamp": time.time(),
+        "message": message
+    }
+
+    return session,message,key_,iv_
+
+
+def compress_data(signature, message):
+    to_compress = {"signature":signature,
+                   "message":message}
+    compressed = compress_string(json.dumps(to_compress))
+    return compressed
+
+def convert_data(data):
+    converted = encode_string(json.dumps(data))
+    return converted
+
+def decompress_data(final_message):
+    return json.loads(decompress_string(final_message["message"]))
+
+
+def original_data(final_message):
+    json_loads = json.loads(final_message['message'])
+    json_loads['message'] = decode_string(json_loads["message"])
+    return json_loads
+
+
+# final_message = {
+# header: header,
+# message: message
+# }
+
+def encrypt_with_session(message,alg,session):
+    key = session["key"]
+    iv = session["iv"]
+    if alg == algs[0]:
+        return format_bytes(AES128EncryptorDecryptor.encrypt(message, iv, key))
+    else:
+        return format_bytes(CAST5EncryptorDecryptor.encrypt(message, iv, key))
+
+
+def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user, pub_key_user):
+    sender = users[priv_key_user]
+    receiver = users[pub_key_user]
+
+    header = {
+            "auth": auth,
+            "encr": encr,
+            "compr": comp,
+            "conver": conv,
+            "auth_alg": auth_alg,
+            "encr_alg": encr_alg
+    }
+
+    signature = sender.sign_message(message)
+    session,message,key,iv = build_message_and_session(message,encr_alg,receiver)
+
+
+
+    data = {
+        "session":session,
+        "message":json.dumps({"signature":signature,
+        "message":message})
+    }
+    if comp:
+        data = {
+            "session":session,
+            "message":compress_data(signature,message)
+        }
+
+    if encr:
+        data['message'] = encrypt_with_session(data['message'],encr_alg,{"key":key,"iv":iv})
+
+    if conv:
+        data = {
+            "message":convert_data(data)
+        }
+
+
+    final_message= {
+        "header":header,
+        "message":json.dumps(data)
+    }
+
+
     file_path = filedialog.asksaveasfilename()
-    print("Saving to:", file_path)  # replace with actual saving logic
+    with open(file_path, "w") as new_file:
+        json.dump(final_message,new_file)
+
 
 
 # GUI layout and elements

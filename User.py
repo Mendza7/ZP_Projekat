@@ -15,7 +15,6 @@ class User:
             private_key = rsa.generate_private_key(
                 public_exponent=65537,
                 key_size=key_size,
-
             )
 
             public_key = private_key.public_key()
@@ -68,3 +67,47 @@ class User:
             least_significant_64_bits = modulus & mask
             print(least_significant_64_bits)
             return least_significant_64_bits
+
+    def sign_message(self, message):
+        signature={}
+        timestamp = time.time()
+        key_id = self.key_id
+
+        if self.auth_alg == 'rsa':
+            hash_value = hashes.Hash(hashes.SHA1())
+            hash_value.update(message.encode('utf-8'))
+            enc_hash = self.auth_priv.sign(
+                hash_value.finalize(),
+                padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA1()),
+                    salt_length=padding.PSS.MAX_LENGTH
+                ),
+                hashes.SHA1()
+            )
+            signature = {
+                "timestamp" : timestamp,
+                "key_id" : key_id,
+                "encrypted_hash" : format_bytes(enc_hash)
+            }
+
+        else:
+            pass
+        return signature
+
+    def encrypt_public(self, message):
+        return self.auth_pub.encrypt(message.encode("utf-8"),
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        ))
+
+    def decrypt_private(self,cypher):
+        return self.auth_priv.decrypt(
+            cypher,
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None
+            )
+        )

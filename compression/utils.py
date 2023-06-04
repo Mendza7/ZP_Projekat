@@ -1,4 +1,5 @@
 import base64
+import binascii
 import zlib
 
 def compress_string(string_to_compress):
@@ -46,9 +47,28 @@ def decode_string(string_to_decode):
     # Return the decoded string
     return decoded_string
 
+def format_bytes(bytes):
+    return binascii.hexlify(bytes).decode('utf-8')
+
+def return_to_original(hexified):
+    return  binascii.unhexlify(hexified.encode('utf-8'))
+
 
 if (__name__=='__main__'):
-    test_string = "This is a test string"
+    test_string = """session": {
+            "key_id": "asd",
+            "session_key": "",
+            "initial_vector": ""
+        },
+        "signature": {
+            "timestamp": 123,
+            "key_id_sender": 1,
+            "hash": "asd"
+        },
+        "message": {
+            "timestamp": 123,
+            "data": "asdfg"
+        }"""
     print(test_string)
     print(compress_string(test_string))
     print(decompress_string(compress_string(test_string)))

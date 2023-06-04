@@ -1,19 +1,15 @@
+import secrets
+
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
 import os
 
 class AES128EncryptorDecryptor:
-    def __init__(self, key,iv):
-        self.iv = iv
-        self.key = key
-
-    def encrypt(self, plaintext):
-        # Generate a random IV (Initialization Vector)
-        self.iv = os.urandom(16)
-
+    @staticmethod
+    def encrypt(plaintext,iv,key):
         # Create an AES cipher object with CBC mode and the provided key
-        cipher = Cipher(algorithms.AES(self.key), modes.CBC(self.iv), backend=default_backend())
+        cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
 
         # Create an encryptor object
         encryptor = cipher.encryptor()
@@ -26,7 +22,13 @@ class AES128EncryptorDecryptor:
         ciphertext = encryptor.update(padded_plaintext) + encryptor.finalize()
 
         # Return the IV and ciphertext
-        return self.iv + ciphertext
+        return ciphertext
+
+    @staticmethod
+    def generate_iv_and_key():
+        iv = secrets.token_bytes(128 // 8)
+        key = secrets.token_bytes(128 // 8)
+        return iv, key
 
     @staticmethod
     def decrypt(ciphertext, iv, key):

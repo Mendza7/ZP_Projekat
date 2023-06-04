@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import messagebox, filedialog, simpledialog
 
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
@@ -14,7 +13,7 @@ class ExportDialog(tk.Toplevel):
         self.title("Export RSA Keys")
 
         self.user_var = tk.StringVar(self)
-        self.user_var.set('default')
+        self.user_var.set('New User')
 
         self.key_type_var = tk.StringVar(self)
         self.key_type_var.set('Private Key')
@@ -93,7 +92,7 @@ class ExportDialog(tk.Toplevel):
 
             pem_data = key.public_bytes(
                 encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
+                format=serialization.PublicFormat.PKCS1
             )
 
         save_path = filedialog.asksaveasfilename(defaultextension=".pem",

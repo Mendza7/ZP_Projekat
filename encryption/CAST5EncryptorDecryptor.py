@@ -1,19 +1,16 @@
 import os
+import secrets
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
 
 class CAST5EncryptorDecryptor:
-    def __init__(self, key):
-        self.key = key
-
-    def encrypt(self, plaintext):
-        # Generate a random IV (Initialization Vector)
-        iv = os.urandom(8)
+    @staticmethod
+    def encrypt(plaintext, iv, key):
 
         # Create a CAST5 cipher object with CBC mode and the provided key
-        cipher = Cipher(algorithms.CAST5(self.key), modes.CBC(iv), backend=default_backend())
+        cipher = Cipher(algorithms.CAST5(key), modes.CBC(iv), backend=default_backend())
 
         # Create an encryptor object
         encryptor = cipher.encryptor()
@@ -26,7 +23,14 @@ class CAST5EncryptorDecryptor:
         ciphertext = encryptor.update(padded_plaintext) + encryptor.finalize()
 
         # Return the IV and ciphertext
-        return iv + ciphertext
+        return ciphertext
+
+    @staticmethod
+    def generate_iv_and_key():
+        # Generate a random IV (Initialization Vector)
+        iv = secrets.token_bytes(64 // 8)
+        key = secrets.token_bytes(128 // 8)
+        return iv, key
 
     @staticmethod
     def decrypt(ciphertext, iv, key):
