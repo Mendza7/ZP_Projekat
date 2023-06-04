@@ -110,4 +110,4 @@ class User:
                 algorithm=hashes.SHA256(),
                 label=None
             )
-        )
+        ).decode('utf-8')

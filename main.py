@@ -280,13 +280,29 @@ def display_public_key_ring():
     root.mainloop()
 
 
-def decrypt_with_session(param):
-    pass
+def decrypt_with_session(algorithm,message,key, iv):
+    if algorithm == algs[0]:
+        return AES128EncryptorDecryptor.decrypt(return_to_original(message),key,iv)
+    else:
+        return CAST5EncryptorDecryptor.decrypt(return_to_original(message),key,iv)
+    
 
 
 def decrypt_session(session):
+    user = None
+    for u in users.values():
+        if u.key_id == session['key_id']:
+            user = u
+            break
+
+    if user is None:
+        raise ValueError
+
+
     return {
-        "key_id"
+        "key_id":session['key_id'],
+        "key": return_to_original(user.decrypt_private(return_to_original(session['key']))),
+        "iv": return_to_original(user.decrypt_private(return_to_original(session['iv'])))
     }
 
 
@@ -308,13 +324,13 @@ def receive_message():
         encr_alg = header['encr_alg']
 
         if conver:
-            data = {
-                "message": original_data(data)
-            }
+            data = original_data(data)
+
+        data = json.loads(data['message'])
 
         if encr:
-            # session = decrypt_session(data['session'])
-            data['message'] = decrypt_with_session(data['message'])
+            session = decrypt_session(data['session'])
+            data['message'] = decrypt_with_session(encr_alg,data['message'],session['key'],session['iv'])
 
         # if comp:
         #     data = {
