@@ -281,32 +281,34 @@ def display_public_key_ring():
     root.mainloop()
 
 
-def decrypt_with_session(algorithm,message,key, iv):
+def decrypt_with_session(algorithm, message, key, iv):
     if algorithm == algs[0]:
         original = return_to_original(message)
         return AES128EncryptorDecryptor.decrypt(original, key, iv)
     else:
         to_original = return_to_original(message)
         return CAST5EncryptorDecryptor.decrypt(to_original, key, iv)
-    
 
 
 def decrypt_session(session):
-    user = None
-    for u in users.values():
-        if u.key_id == session['key_id']:
-            user = u
-            break
-
-    if user is None:
-        raise ValueError
-
+    user = find_user_by_id(session['key_id'])
 
     return {
-        "key_id":session['key_id'],
+        "key_id": session['key_id'],
         "key": return_to_original(user.decrypt_private(return_to_original(session['key']))),
         "iv": return_to_original(user.decrypt_private(return_to_original(session['iv'])))
     }
+
+
+def find_user_by_id(key_id):
+    user = None
+    for u in users.values():
+        if u.key_id == key_id:
+            user = u
+            break
+    if user is None:
+        raise ValueError
+    return user
 
 
 def receive_message():
@@ -333,7 +335,7 @@ def receive_message():
 
         if encr:
             session = decrypt_session(data['session'])
-            data['message'] = decrypt_with_session(encr_alg,data['message'],session['key'],session['iv'])
+            data['message'] = decrypt_with_session(encr_alg, data['message'], session['key'], session['iv'])
 
         if compr:
             data = {
@@ -341,12 +343,10 @@ def receive_message():
                 "message": decompress_data(data)
             }
         if auth:
-            pass
+            verified = verify_signature(data['message'], auth_alg)
+
+
         print(json.dumps(data))
-
-
-
-
 
 
 def send_message(root):
@@ -425,34 +425,33 @@ def send_message(root):
     input_field = tk.Entry(new_window)
     input_field.pack()
 
-    # hardcoded save
-    selected_sender=senders[0]
-    selected_receiver = receivers[0]
-
-    save_button = tk.Button(new_window, text="Save file",
-                            command=lambda: save_file(True, True, True, True,
-                                                      'rsa', 'AES', 'asd123asd',
-                                                      selected_sender, selected_receiver))
-
-    # Buttons for save and cancel
+    # # hardcoded save
+    # selected_sender = senders[0]
+    # selected_receiver = receivers[0]
+    #
     # save_button = tk.Button(new_window, text="Save file",
-    #                         command=lambda: save_file(auth_var.get(), encr_var.get(), comp_var.get(), conv_var.get(),
-    #                                                   auth_algorithm, encr_alg_var.get(), input_field.get(),
-    #                                                   selected_sender.get(), selected_receiver.get()))
+    #                         command=lambda: save_file(True, True, True, True,
+    #                                                   'rsa', 'AES', 'asd123asd',
+    #                                                   selected_sender, selected_receiver))
+
+    #Buttons for save and cancel
+    save_button = tk.Button(new_window, text="Save file",
+                            command=lambda: save_file(auth_var.get(), encr_var.get(), comp_var.get(), conv_var.get(),
+                                                      auth_algorithm, encr_alg_var.get(), input_field.get(),
+                                                      selected_sender.get(), selected_receiver.get()))
     cancel_button = tk.Button(new_window, text="Cancel", command=cancel_action)
 
     save_button.pack()
     cancel_button.pack()
 
 
-
-def build_message_and_session(message, alg, receiver:User):
+def build_message_and_session(message, alg, receiver: User):
     if alg == algs[0]:
         key_, iv_ = AES128EncryptorDecryptor.generate_iv_and_key()
     elif alg == algs[1]:
         key_, iv_ = CAST5EncryptorDecryptor.generate_iv_and_key()
     else:
-        key_,iv_ = b'', b''
+        key_, iv_ = b'', b''
 
     key = receiver.encrypt_public(format_bytes(key_))
     iv = receiver.encrypt_public(format_bytes(iv_))
@@ -468,18 +467,20 @@ def build_message_and_session(message, alg, receiver:User):
         "message": message
     }
 
-    return session,message,key_,iv_
+    return session, message, key_, iv_
 
 
 def compress_data(signature, message):
-    to_compress = {"signature":signature,
-                   "message":message}
+    to_compress = {"signature": signature,
+                   "message": message}
     compressed = format_bytes(compress_string(json.dumps(to_compress)))
     return compressed
+
 
 def convert_data(data):
     converted = encode_string(json.dumps(data))
     return converted
+
 
 def decompress_data(final_message):
     original = return_to_original(final_message["message"])
@@ -494,7 +495,17 @@ def original_data(final_message):
     return json_loads
 
 
-def encrypt_with_session(message,alg,session):
+def verify_signature(msg_sign, alg):
+    message = msg_sign['message']['message']
+    signature = msg_sign['signature']
+    enc_hash = signature['encrypted_hash']
+    user = find_user_by_id(signature['key_id'])
+
+    verified = user.verify(message, enc_hash, alg)
+    return verified
+
+
+def encrypt_with_session(message, alg, session):
     key = session["key"]
     iv = session["iv"]
     if alg == algs[0]:
@@ -508,51 +519,48 @@ def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user
     receiver = users[pub_key_user]
 
     header = {
-            "auth": auth,
-            "encr": encr,
-            "compr": comp,
-            "conver": conv,
-            "auth_alg": auth_alg,
-            "encr_alg": encr_alg
+        "auth": auth,
+        "encr": encr,
+        "compr": comp,
+        "conver": conv,
+        "auth_alg": auth_alg,
+        "encr_alg": encr_alg
     }
 
     signature = sender.sign_message(message)
-    session,message,key,iv = build_message_and_session(message,encr_alg,receiver)
-
+    session, message, key, iv = build_message_and_session(message, encr_alg, receiver)
 
     data = {
-        "session":session,
-        "message":json.dumps({"signature":signature,
-        "message":message})
+        "session": session,
+        "message": json.dumps({"signature": signature,
+                               "message": message})
     }
     if comp:
         data = {
-            "session":session,
-            "message":compress_data(signature,message)
+            "session": session,
+            "message": compress_data(signature, message)
         }
         print(json.dumps(data))
 
     if encr:
-        data['message'] = encrypt_with_session(data['message'],encr_alg,{"key":key,"iv":iv})
+        data['message'] = encrypt_with_session(data['message'], encr_alg, {"key": key, "iv": iv})
         print(json.dumps(data))
 
     if conv:
         data = {
-            "message":convert_data(data)
+            "message": convert_data(data)
         }
         print(json.dumps(data))
 
-
-    final_message= {
-        "header":header,
-        "message":json.dumps(data)
+    final_message = {
+        "header": header,
+        "message": json.dumps(data)
     }
     print(json.dumps(final_message))
 
     file_path = filedialog.asksaveasfilename()
     with open(file_path, "w") as new_file:
-        json.dump(final_message,new_file)
-
+        json.dump(final_message, new_file)
 
 
 # GUI layout and elements

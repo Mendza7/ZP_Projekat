@@ -1,6 +1,7 @@
 import time
 
 import bcrypt
+from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -8,7 +9,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
 from auth.utils import sha1_hash
-from compression.utils import format_bytes
+from compression.utils import format_bytes, return_to_original
 
 
 class User:
@@ -73,15 +74,15 @@ class User:
             return least_significant_64_bits
 
     def sign_message(self, message):
-        signature={}
+        signature = {}
         timestamp = time.time()
         key_id = self.key_id
 
         if self.auth_alg == 'rsa':
-            hash_value = hashes.Hash(hashes.SHA1())
-            hash_value.update(message.encode('utf-8'))
+            # hash_value = hashes.Hash(hashes.SHA1())
+            # hash_value.update(message.encode('utf-8'))
             enc_hash = self.auth_priv.sign(
-                hash_value.finalize(),
+                message.encode('utf-8'),
                 padding.PSS(
                     mgf=padding.MGF1(hashes.SHA1()),
                     salt_length=padding.PSS.MAX_LENGTH
@@ -89,24 +90,43 @@ class User:
                 hashes.SHA1()
             )
             signature = {
-                "timestamp" : timestamp,
-                "key_id" : key_id,
-                "encrypted_hash" : format_bytes(enc_hash)
+                "timestamp": timestamp,
+                "key_id": key_id,
+                "encrypted_hash": format_bytes(enc_hash)
             }
 
         else:
             pass
         return signature
 
+    def verify(self, message, enc_hash, alg):
+
+        message_bytes = message.encode('utf-8')
+        if alg == 'rsa':
+            try:
+                self.auth_pub.verify(return_to_original(enc_hash), message_bytes,
+                                 padding.PSS(
+                                     mgf=padding.MGF1(hashes.SHA1()),
+                                     salt_length=padding.PSS.MAX_LENGTH
+                                 ), hashes.SHA1())
+                return True
+            except InvalidSignature:
+                print("Invalid Signature for user: "+self.name)
+                return False
+        else:
+            #TODO: El Gamal
+            return False
+
+
     def encrypt_public(self, message):
         return self.auth_pub.encrypt(message.encode("utf-8"),
-        padding.OAEP(
-            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-            algorithm=hashes.SHA256(),
-            label=None
-        ))
+                                     padding.OAEP(
+                                         mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                                         algorithm=hashes.SHA256(),
+                                         label=None
+                                     ))
 
-    def decrypt_private(self,cypher):
+    def decrypt_private(self, cypher):
         return self.auth_priv.decrypt(
             cypher,
             padding.OAEP(
@@ -115,3 +135,25 @@ class User:
                 label=None
             )
         ).decode('utf-8')
+
+if __name__ == '__main__':
+
+    user = User('merisa', 'm@gmail.com', 'rsa')
+    message = "Hello, World!"
+
+    # Sign the message
+    signature = user.sign_message(message)
+
+    # Extract the necessary information from the signature
+    timestamp = signature["timestamp"]
+    key_id = signature["key_id"]
+    enc_hash = signature["encrypted_hash"]
+
+    # Verify the signature
+    verification_result = user.verify(message, enc_hash, 'rsa')
+
+    # Print the verification result
+    if verification_result:
+        print("Signature is valid.")
+    else:
+        print("Signature is invalid.")
