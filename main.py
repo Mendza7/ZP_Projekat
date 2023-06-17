@@ -302,7 +302,7 @@ def decrypt_session(session):
     }
 
 
-def find_user_by_id(key_id):
+def find_user_by_id(key_id) -> User:
     user = None
     for u in users.values():
         if u.key_id == key_id:
@@ -351,7 +351,7 @@ def receive_message():
             }
             write_to_json('after_de_compr.json',data)
 
-
+        from_user = "unknown"
         if auth:
             if not isinstance(data['message'],dict):
                 data['message']=json.loads(data['message'])
@@ -361,8 +361,9 @@ def receive_message():
             message=msg['message']
             signature=msg['signature']
             verified = verify_signature(message, signature, auth_alg)
+            if verified:
+                from_user = find_user_by_id(signature['key_id']).name
             write_to_json('after_de_auth.json',data)
-            print(verified)
         # print message here
         else:
             data = data['message']
@@ -370,7 +371,7 @@ def receive_message():
         if isinstance(data,str):
             data = json.loads(data)
 
-        show_received_message(data['message'],"MesaBOSSS")
+        show_received_message(data['message'],from_user)
 
 
 def show_received_message(message,from_person=""):
