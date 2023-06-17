@@ -551,9 +551,9 @@ def encrypt_with_session(message, alg, session):
     key = session["key"]
     iv = session["iv"]
     if alg == algs[0]:
-        return bin2hex(AES128EncryptorDecryptor.encrypt(message, key, iv))
+        return bin2hex(AES128EncryptorDecryptor.encrypt(message, iv,key))
     else:
-        return bin2hex(CAST5EncryptorDecryptor.encrypt(message, key, iv))
+        return bin2hex(CAST5EncryptorDecryptor.encrypt(message, iv,key))
 
 
 def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user, pub_key_user):

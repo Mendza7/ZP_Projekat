@@ -32,13 +32,10 @@ class AES128EncryptorDecryptor:
 
     @staticmethod
     def decrypt(ciphertext, iv, key):
-        # Create an AES cipher object with CBC mode and the provided key
         cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
 
-        # Create a decryptor object
         decryptor = cipher.decryptor()
 
-        # Decrypt the ciphertext
         padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
 
         unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
