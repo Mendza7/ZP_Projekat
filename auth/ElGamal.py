@@ -48,11 +48,12 @@ class ElGamalDSA():
         self.h = pow(self.elGamalPrivate.g,self.elGamalPrivate.x,self.elGamalPrivate.p)
 
     def sign(self,message):
-        return self.DSAPrivate.sign(message.encode('utf-8'),hashes.SHA1())
+        return self.encrypt(self.DSAPrivate.sign(message,hashes.SHA1()),int(self.elGamalPrivate.p),int(self.elGamalPrivate.g),int(self.elGamalPrivate.y))
 
-    def verify(self,signature:bytes,message:bytes):
+    def verify(self,signature:list,message:bytes):
         try:
-            self.DSAPrivate.public_key().verify(signature,message,hashes.SHA1())
+            decrypted_signature = self.decrypt(signature,int(self.elGamalPrivate.p),int(self.elGamalPrivate.g),int(self.elGamalPrivate.x),int(self.elGamalPrivate.y))
+            self.DSAPrivate.public_key().verify(decrypted_signature,message,hashes.SHA1())
             return True
         except InvalidSignature:
             return False
@@ -62,6 +63,10 @@ class ElGamalDSA():
 
     def encrypt(self,message:bytes,p,g,y):
        return [self._encrypt(ord(i),p,g,y) for i in bin2hex(message)]
+
+    def encrypt_public(self,message:bytes):
+        return self.encrypt(message, int(self.elGamalPrivate.p),
+                            int(self.elGamalPrivate.g), int(self.elGamalPrivate.y))
 
     def decrypt(self, cypher,p,g,x,y):
         return hex2bin("".join([chr(self._decrypt(i,p,g,x,y)) for i in cypher]))
@@ -91,6 +96,9 @@ class ElGamalDSA():
         plaintext = (plaintext_blind * pow(y, r, p)) % p
         return plaintext
 
+    def decrypt_private(self, cypher):
+        return self.decrypt(cypher, int(self.elGamalPrivate.p), int(self.elGamalPrivate.g),
+                                           int(self.elGamalPrivate.x), int(self.elGamalPrivate.y))
 
 
 def int_to_bytes(num, chunk_size_bits=31):
@@ -110,12 +118,10 @@ def int_to_bytes(num, chunk_size_bits=31):
 
     return bytes(bytes_arr)
 
-# if __name__ == '__main__':
-#     lgma=ElGamalDSA(1024)
-#     message = 'Proba proba proba proba'
-#     sign = lgma.sign(message)
-#     encrypt = lgma.encrypt(sign)
-#     decrypt = lgma.decrypt(encrypt)
-#
-#     verified = lgma.verify(decrypt,message.encode('utf-8'))
-#     print(verified)
+if __name__ == '__main__':
+    lgma=ElGamalDSA(1024)
+    message = 'Proba proba proba proba'
+    sign = lgma.sign(message.encode('utf-8'))
+
+    verified = lgma.verify(sign,message.encode('utf-8'))
+    print(verified)

@@ -1,3 +1,4 @@
+import pickle
 import time
 
 import bcrypt
@@ -8,8 +9,10 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
+from auth.ElGamal import ElGamalDSA
 from auth.utils import sha1_hash
 from compression.utils import bin2hex, hex2bin
+
 
 
 class User:
@@ -21,12 +24,15 @@ class User:
                 public_exponent=65537,
                 key_size=key_size,
             )
-
             public_key = private_key.public_key()
+            self.key_id = User.generate_key_id(public_key,'rsa')
+        elif algorithm =='elgamala':
+            self.elGamal:ElGamalDSA = ElGamalDSA(key_size)
+            self.key_id = User.generate_key_id(int(self.elGamal.elGamalPublic.y),'elgamala')
+
         self.timestamp = time.time()
         self.name = name
         self.email = email
-        self.key_id = User.generate_key_id(public_key)
         self.auth_key_size = key_size
         self.auth_alg = algorithm
         self.auth_pub = public_key
@@ -61,16 +67,20 @@ class User:
         return bcrypt.checkpw(entered_password.encode(), self.priv_pass)
 
     @staticmethod
-    def generate_key_id(public_key):
-        if public_key is not None:
-            modulus = public_key.public_numbers().n
+    def generate_key_id(public_key, alg=None):
+        # Mask to get the least significant 64 bits
+        mask = (1 << 64) - 1
+        if alg == 'rsa':
+            if public_key is not None:
+                modulus = public_key.public_numbers().n
 
-            # Mask to get the least significant 64 bits
-            mask = (1 << 64) - 1
 
-            # Extract the least significant 64 bits by performing bitwise AND with the mask
-            least_significant_64_bits = modulus & mask
-            print(least_significant_64_bits)
+                # Extract the least significant 64 bits by performing bitwise AND with the mask
+                least_significant_64_bits = modulus & mask
+                print(least_significant_64_bits)
+                return least_significant_64_bits
+        else:
+            least_significant_64_bits = public_key & mask
             return least_significant_64_bits
 
     def sign_message(self, message):
@@ -79,8 +89,6 @@ class User:
         key_id = self.key_id
 
         if self.auth_alg == 'rsa':
-            # hash_value = hashes.Hash(hashes.SHA1())
-            # hash_value.update(message.encode('utf-8'))
             enc_hash = self.auth_priv.sign(
                 message.encode('utf-8'),
                 padding.PSS(
@@ -89,14 +97,16 @@ class User:
                 ),
                 hashes.SHA1()
             )
-            signature = {
-                "timestamp": timestamp,
-                "key_id": key_id,
-                "encrypted_hash": bin2hex(enc_hash)
-            }
+
 
         else:
-            pass
+            enc_hash = pickle.dumps(self.elGamal.sign(message.encode('utf-8')))
+
+        signature = {
+            "timestamp": timestamp,
+            "key_id": key_id,
+            "encrypted_hash": bin2hex(enc_hash)
+        }
         return signature
 
     def verify(self, message, enc_hash, alg):
@@ -114,27 +124,31 @@ class User:
                 print("Invalid Signature for user: "+self.name)
                 return False
         else:
-            #TODO: El Gamal
-            return False
-
+            return self.elGamal.verify(pickle.loads(hex2bin(enc_hash)),message_bytes)
 
     def encrypt_public(self, message):
-        return self.auth_pub.encrypt(message.encode("utf-8"),
-                                     padding.OAEP(
-                                         mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                                         algorithm=hashes.SHA256(),
-                                         label=None
-                                     ))
+        if self.auth_alg == 'rsa':
+            return self.auth_pub.encrypt(message.encode("utf-8"),
+                                         padding.OAEP(
+                                             mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                                             algorithm=hashes.SHA256(),
+                                             label=None
+                                         ))
+        else:
+            return pickle.dumps(self.elGamal.encrypt_public(message.encode('utf-8')))
 
     def decrypt_private(self, cypher):
-        return self.auth_priv.decrypt(
-            cypher,
-            padding.OAEP(
-                mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None
-            )
-        ).decode('utf-8')
+        if self.auth_alg=='rsa':
+            return self.auth_priv.decrypt(
+                cypher,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None
+                )
+            ).decode('utf-8')
+        else:
+            return self.elGamal.decrypt_private(pickle.loads(cypher))
 
 if __name__ == '__main__':
 

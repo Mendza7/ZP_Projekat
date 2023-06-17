@@ -172,7 +172,7 @@ def generate_key_pair():
                                           "Enter a password of at least 1 character in length to protect your private key:",
                                           show="*")
 
-    users[email] = User(name=name, email=email, algorithm='rsa', key_size=key_size, password=password)
+    users[email] = User(name=name, email=email, algorithm='elgamala', key_size=key_size, password=password)
 
     print(users)
 
