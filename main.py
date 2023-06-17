@@ -417,6 +417,19 @@ def send_message(root):
         return
     # New Toplevel window
     new_window = tk.Toplevel(root)
+    window_width = 300
+    window_height = 500
+
+    # Get the screen width and height
+    screen_width = new_window.winfo_screenwidth()
+    screen_height = new_window.winfo_screenheight()
+
+    # Calculate the x and y coordinates to center the window
+    x = (screen_width // 2) - (window_width // 2)
+    y = (screen_height // 2) - (window_height // 2)
+
+    # Set the window geometry to center the window
+    new_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
     def cancel_action():
         new_window.destroy()
@@ -648,6 +661,21 @@ def write_to_json(file_path, final_message):
 if __name__ == '__main__':
     root = tk.Tk()
     root.title("PGP Email Encryption")
+
+    window_width = 300
+    window_height = 300
+
+    # Get the screen width and height
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+
+    # Calculate the x and y coordinates to center the window
+    x = (screen_width // 2) - (window_width // 2)
+    y = (screen_height // 2) - (window_height // 2)
+
+    # Set the window geometry to center the window
+    root.geometry(f"{window_width}x{window_height}+{x}+{y}")
+
 
     generate_key_button = tk.Button(root, text="Generate Key Pair", command=generate_key_pair)
     generate_key_button.pack()
