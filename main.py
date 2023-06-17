@@ -283,7 +283,6 @@ def display_public_key_ring():
 
 
 def decrypt_with_session(algorithm, message, key, iv):
-
     if algorithm == algs[0]:
         original = hex2bin(message)
         return AES128EncryptorDecryptor.decrypt(original, iv, key)
@@ -334,68 +333,82 @@ def receive_message():
         if conver:
             data = original_data(data['message'])
             data = json.loads(data['message'])
-            write_to_json('after_de_conv.json',data)
+            write_to_json('after_de_conv.json', data)
         else:
-            data=data['message']
+            data = data['message']
 
         if encr:
             session = decrypt_session(data['session'])
-            data['message'] = decrypt_with_session(encr_alg, data['message'], session['key'], session['iv']).decode("utf-8")
-            write_to_json('after_de_encr.json',data)
-
+            data['message'] = decrypt_with_session(encr_alg, data['message'], session['key'], session['iv']).decode(
+                "utf-8")
+            write_to_json('after_de_encr.json', data)
 
         if compr:
             data = {
                 "session": data['session'],
                 "message": decompress_data(data['message'])
             }
-            write_to_json('after_de_compr.json',data)
+            write_to_json('after_de_compr.json', data)
 
         from_user = "unknown"
         if auth:
-            if not isinstance(data['message'],dict):
-                data['message']=json.loads(data['message'])
-            msg=data['message']
-            if not isinstance(msg['message'],dict):
-                msg['message']=json.loads(msg['message'])
-            message=msg['message']
-            signature=msg['signature']
+            if not isinstance(data['message'], dict):
+                data['message'] = json.loads(data['message'])
+            msg = data['message']
+            if not isinstance(msg['message'], dict):
+                msg['message'] = json.loads(msg['message'])
+            message = msg['message']
+            signature = msg['signature']
             verified = verify_signature(message, signature, auth_alg)
             if verified:
                 from_user = find_user_by_id(signature['key_id']).name
-            write_to_json('after_de_auth.json',data)
+            write_to_json('after_de_auth.json', data)
         # print message here
-        else:
-            data = data['message']
 
-        if isinstance(data,str):
+        data = data['message']
+
+        if isinstance(data, str):
             data = json.loads(data)
 
-        show_received_message(data['message'],from_user)
+        show_received_message(data['message'], auth, verified, from_user)
 
 
-def show_received_message(message,from_person=""):
-    if isinstance(message,str):
+def show_received_message(message, signed, verified, from_person="", ):
+    if isinstance(message, str):
         message = json.loads(message)
 
-    time = datetime.utcfromtimestamp(message['timestamp'])
+    time = str((datetime.utcfromtimestamp(message['timestamp']))).split(".")[0]
     # create a new Toplevel window
     popup = tk.Toplevel()
 
-    message_label = tk.Label(popup,text=f"From:{from_person}")
+    message_label = tk.Label(popup, text=f"From:{from_person}")
     message_label.pack()
-    tk.Text(popup)
+
+    if signed:
+        signed_text = 'Yes'
+    else:
+        signed_text = 'No'
+    signed_label = tk.Label(popup, text=f"Signed: {signed_text}")
+    signed_label.pack()
+
+    if verified:
+        verified_text = 'Yes'
+    else:
+        verified_text = 'No'
+    verified_label = tk.Label(popup, text=f"Verified: {verified_text}")
+    verified_label.pack()
+
     # create a Text widget
     message_text = tk.Text(popup, height=30, width=100)
-
     # insert a large text message into the Text widget
     message_text.insert(tk.END, f"Received message:\n"
-                                f"Time:{time}\n"
-                                f"Message:{message['message']}")
+                                f"{message['message']}\n"
+                                f"Time:{time}\n")
+    message_text.config(state="disabled")
+
 
     # place the Text widget in the popup window
     message_text.pack()
-
 
 
 def send_message(root):
@@ -487,7 +500,8 @@ def send_message(root):
     save_button = tk.Button(new_window, text="Save file",
                             command=lambda: save_file(auth_var.get(), encr_var.get(), comp_var.get(), conv_var.get(),
                                                       auth_algorithm, encr_alg_var.get(), input_field.get(),
-                                                      selected_sender.get(), selected_receiver.get()))
+                                                      selected_sender.get(), selected_receiver.get(),
+                                                      password_field.get()))
     cancel_button = tk.Button(new_window, text="Cancel", command=cancel_action)
 
     save_button.pack()
@@ -552,13 +566,18 @@ def encrypt_with_session(message, alg, session):
     key = session["key"]
     iv = session["iv"]
     if alg == algs[0]:
-        return bin2hex(AES128EncryptorDecryptor.encrypt(message, iv,key))
+        return bin2hex(AES128EncryptorDecryptor.encrypt(message, iv, key))
     else:
-        return bin2hex(CAST5EncryptorDecryptor.encrypt(message, iv,key))
+        return bin2hex(CAST5EncryptorDecryptor.encrypt(message, iv, key))
 
 
-def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user, pub_key_user):
-    sender = users[priv_key_user]
+def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user, pub_key_user, password):
+    sender: User = users[priv_key_user]
+    password_correct = sender.verify_password(password)
+    if not password_correct:
+        messagebox.showwarning("Warning", "Incorrect password. Please enter valid password.")
+        return
+
     receiver = users[pub_key_user]
 
     header = {
@@ -588,8 +607,7 @@ def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user
                                    "message": message})
         }
         print(json.dumps(data))
-        write_to_json('after_auth.json',data)
-
+        write_to_json('after_auth.json', data)
 
     if comp:
         data = {
@@ -597,22 +615,19 @@ def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user
             "message": compress_data(data['message'])
         }
         print(json.dumps(data))
-        write_to_json('after_comp.json',data)
-
+        write_to_json('after_comp.json', data)
 
     if encr:
         data['message'] = encrypt_with_session(data['message'], encr_alg, {"key": key, "iv": iv})
         print(json.dumps(data))
-        write_to_json('after_encr.json',data)
-
+        write_to_json('after_encr.json', data)
 
     if conv:
         data = {
             "message": convert_data(data)
         }
         print(json.dumps(data))
-        write_to_json('after_conv.json',data)
-
+        write_to_json('after_conv.json', data)
 
     final_message = {
         "header": header,
