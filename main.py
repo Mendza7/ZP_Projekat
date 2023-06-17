@@ -422,11 +422,20 @@ def send_message(root):
     input_field = tk.Entry(new_window)
     input_field.pack()
 
-    # Buttons for save and cancel
+    # hardcoded save
+    selected_sender=senders[0]
+    selected_receiver = receivers[0]
+
     save_button = tk.Button(new_window, text="Save file",
-                            command=lambda: save_file(auth_var.get(), encr_var.get(), comp_var.get(), conv_var.get(),
-                                                      auth_algorithm, encr_alg_var.get(), input_field.get(),
+                            command=lambda: save_file(True, True, True, True,
+                                                      'rsa', 'aes', 'asd123asd',
                                                       selected_sender.get(), selected_receiver.get()))
+
+    # Buttons for save and cancel
+    # save_button = tk.Button(new_window, text="Save file",
+    #                         command=lambda: save_file(auth_var.get(), encr_var.get(), comp_var.get(), conv_var.get(),
+    #                                                   auth_algorithm, encr_alg_var.get(), input_field.get(),
+    #                                                   selected_sender.get(), selected_receiver.get()))
     cancel_button = tk.Button(new_window, text="Cancel", command=cancel_action)
 
     save_button.pack()
