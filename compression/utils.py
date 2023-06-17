@@ -51,7 +51,11 @@ def format_bytes(bytes):
     return binascii.hexlify(bytes).decode('utf-8')
 
 def return_to_original(hexified):
-    return  binascii.unhexlify(hexified.encode('utf-8'))
+    try:
+        hexified = hexified.encode('utf-8')
+    except Exception:
+        pass
+    return  binascii.unhexlify(hexified)
 
 
 if (__name__=='__main__'):

@@ -342,7 +342,7 @@ def receive_message():
             }
         if auth:
             pass
-        print(data)
+        print(json.dumps(data))
 
 
 
@@ -482,7 +482,10 @@ def convert_data(data):
     return converted
 
 def decompress_data(final_message):
-    return json.loads(decompress_string(return_to_original(final_message["message"])))
+    original = return_to_original(final_message["message"])
+    string = decompress_string(original)
+    loads = json.loads(string)
+    return loads
 
 
 def original_data(final_message):
@@ -490,11 +493,6 @@ def original_data(final_message):
     json_loads['message'] = decode_string(json_loads["message"])
     return json_loads
 
-
-# final_message = {
-# header: header,
-# message: message
-# }
 
 def encrypt_with_session(message,alg,session):
     key = session["key"]
