@@ -4,6 +4,7 @@ import re
 import time
 import tkinter as tk
 import warnings
+from datetime import datetime
 from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 
@@ -373,6 +374,10 @@ def receive_message():
 
 
 def show_received_message(message,from_person=""):
+    if isinstance(message,str):
+        message = json.loads(message)
+
+    time = datetime.utcfromtimestamp(message['timestamp'])
     # create a new Toplevel window
     popup = tk.Toplevel()
 
@@ -383,7 +388,9 @@ def show_received_message(message,from_person=""):
     message_text = tk.Text(popup, height=30, width=100)
 
     # insert a large text message into the Text widget
-    message_text.insert(tk.END, f"Received message:{message}")
+    message_text.insert(tk.END, f"Received message:\n"
+                                f"Time:{time}\n"
+                                f"Message:{message['message']}")
 
     # place the Text widget in the popup window
     message_text.pack()
