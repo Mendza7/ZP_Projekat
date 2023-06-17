@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
 from auth.utils import sha1_hash
-from compression.utils import format_bytes, return_to_original
+from compression.utils import bin2hex, hex2bin
 
 
 class User:
@@ -92,7 +92,7 @@ class User:
             signature = {
                 "timestamp": timestamp,
                 "key_id": key_id,
-                "encrypted_hash": format_bytes(enc_hash)
+                "encrypted_hash": bin2hex(enc_hash)
             }
 
         else:
@@ -104,8 +104,8 @@ class User:
         message_bytes = message.encode('utf-8')
         if alg == 'rsa':
             try:
-                self.auth_pub.verify(return_to_original(enc_hash), message_bytes,
-                                 padding.PSS(
+                self.auth_pub.verify(hex2bin(enc_hash), message_bytes,
+                                     padding.PSS(
                                      mgf=padding.MGF1(hashes.SHA1()),
                                      salt_length=padding.PSS.MAX_LENGTH
                                  ), hashes.SHA1())

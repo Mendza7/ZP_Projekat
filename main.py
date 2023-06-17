@@ -282,11 +282,12 @@ def display_public_key_ring():
 
 
 def decrypt_with_session(algorithm, message, key, iv):
+
     if algorithm == algs[0]:
-        original = return_to_original(message)
+        original = hex2bin(message)
         return AES128EncryptorDecryptor.decrypt(original, key, iv)
     else:
-        to_original = return_to_original(message)
+        to_original = hex2bin(message)
         return CAST5EncryptorDecryptor.decrypt(to_original, key, iv)
 
 
@@ -295,8 +296,8 @@ def decrypt_session(session):
 
     return {
         "key_id": session['key_id'],
-        "key": return_to_original(user.decrypt_private(return_to_original(session['key']))),
-        "iv": return_to_original(user.decrypt_private(return_to_original(session['iv'])))
+        "key": hex2bin(user.decrypt_private(hex2bin(session['key']))),
+        "iv": hex2bin(user.decrypt_private(hex2bin(session['iv'])))
     }
 
 
@@ -319,6 +320,7 @@ def receive_message():
         if not data['header']:
             messagebox.showwarning("Warning", "invalid message format!")
             return
+        data['message'] = json.loads(data['message'])
 
         header = data['header']
         auth = header['auth']
@@ -329,24 +331,31 @@ def receive_message():
         encr_alg = header['encr_alg']
 
         if conver:
-            data = original_data(data)
-
+            data = original_data(data['message'])
             data = json.loads(data['message'])
 
         if encr:
             session = decrypt_session(data['session'])
-            data['message'] = decrypt_with_session(encr_alg, data['message'], session['key'], session['iv'])
+            data['message'] = decrypt_with_session(encr_alg, data['message'], session['key'], session['iv']).decode("utf-8")
 
         if compr:
             data = {
                 "session": data['session'],
-                "message": decompress_data(data)
+                "message": decompress_data(data['message'])
             }
+
         if auth:
-            verified = verify_signature(data['message'], auth_alg)
+            if not isinstance(data['message'],dict):
+                data['message']=json.loads(data['message'])
+            msg=data['message']
+            if not isinstance(msg['message'],dict):
+                msg['message']=json.loads(msg['message'])
+            message=msg['message']
+            signature=msg['signature']
+            verified = verify_signature(message, signature, auth_alg)
+            print(verified)
+            print(data['message'])
 
-
-        print(json.dumps(data))
 
 
 def send_message(root):
@@ -434,7 +443,7 @@ def send_message(root):
     #                                                   'rsa', 'AES', 'asd123asd',
     #                                                   selected_sender, selected_receiver))
 
-    #Buttons for save and cancel
+    # Buttons for save and cancel
     save_button = tk.Button(new_window, text="Save file",
                             command=lambda: save_file(auth_var.get(), encr_var.get(), comp_var.get(), conv_var.get(),
                                                       auth_algorithm, encr_alg_var.get(), input_field.get(),
@@ -453,13 +462,13 @@ def build_message_and_session(message, alg, receiver: User):
     else:
         key_, iv_ = b'', b''
 
-    key = receiver.encrypt_public(format_bytes(key_))
-    iv = receiver.encrypt_public(format_bytes(iv_))
+    key = receiver.encrypt_public(bin2hex(key_))
+    iv = receiver.encrypt_public(bin2hex(iv_))
 
     session = {
         "key_id": receiver.key_id,
-        "key": format_bytes(key),
-        "iv": format_bytes(iv)
+        "key": bin2hex(key),
+        "iv": bin2hex(iv)
     }
 
     message = {
@@ -470,10 +479,8 @@ def build_message_and_session(message, alg, receiver: User):
     return session, message, key_, iv_
 
 
-def compress_data(signature, message):
-    to_compress = {"signature": signature,
-                   "message": message}
-    compressed = format_bytes(compress_string(json.dumps(to_compress)))
+def compress_data(to_compress):
+    compressed = bin2hex(compress_string(to_compress))
     return compressed
 
 
@@ -483,25 +490,21 @@ def convert_data(data):
 
 
 def decompress_data(final_message):
-    original = return_to_original(final_message["message"])
+    original = hex2bin(final_message)
     string = decompress_string(original)
-    loads = json.loads(string)
-    return loads
+    return string
 
 
 def original_data(final_message):
-    json_loads = json.loads(final_message['message'])
-    json_loads['message'] = decode_string(json_loads["message"])
-    return json_loads
+    final_message['message'] = decode_string(final_message['message'])
+    return final_message
 
 
-def verify_signature(msg_sign, alg):
-    message = msg_sign['message']['message']
-    signature = msg_sign['signature']
+def verify_signature(message, signature, alg):
     enc_hash = signature['encrypted_hash']
     user = find_user_by_id(signature['key_id'])
 
-    verified = user.verify(message, enc_hash, alg)
+    verified = user.verify(message['message'], enc_hash, alg)
     return verified
 
 
@@ -509,9 +512,9 @@ def encrypt_with_session(message, alg, session):
     key = session["key"]
     iv = session["iv"]
     if alg == algs[0]:
-        return format_bytes(AES128EncryptorDecryptor.encrypt(message, key, iv))
+        return bin2hex(AES128EncryptorDecryptor.encrypt(message, key, iv))
     else:
-        return format_bytes(CAST5EncryptorDecryptor.encrypt(message, key, iv))
+        return bin2hex(CAST5EncryptorDecryptor.encrypt(message, key, iv))
 
 
 def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user, pub_key_user):
@@ -527,18 +530,28 @@ def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user
         "encr_alg": encr_alg
     }
 
-    signature = sender.sign_message(message)
     session, message, key, iv = build_message_and_session(message, encr_alg, receiver)
+    signature = ""
 
     data = {
         "session": session,
         "message": json.dumps({"signature": signature,
                                "message": message})
     }
+
+    if auth:
+        signature = sender.sign_message(message['message'])
+
+        data = {
+            "session": session,
+            "message": json.dumps({"signature": signature,
+                                   "message": message})
+        }
+
     if comp:
         data = {
             "session": session,
-            "message": compress_data(signature, message)
+            "message": compress_data(data['message'])
         }
         print(json.dumps(data))
 
