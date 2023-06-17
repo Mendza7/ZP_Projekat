@@ -286,10 +286,10 @@ def decrypt_with_session(algorithm, message, key, iv):
 
     if algorithm == algs[0]:
         original = hex2bin(message)
-        return AES128EncryptorDecryptor.decrypt(original, key, iv)
+        return AES128EncryptorDecryptor.decrypt(original, iv, key)
     else:
         to_original = hex2bin(message)
-        return CAST5EncryptorDecryptor.decrypt(to_original, key, iv)
+        return CAST5EncryptorDecryptor.decrypt(to_original, iv, key)
 
 
 def decrypt_session(session):

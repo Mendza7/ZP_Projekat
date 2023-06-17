@@ -28,7 +28,7 @@ class AES128EncryptorDecryptor:
     def generate_iv_and_key():
         iv = secrets.token_bytes(128 // 8)
         key = secrets.token_bytes(128 // 8)
-        return iv, key
+        return key, iv
 
     @staticmethod
     def decrypt(ciphertext, iv, key):
