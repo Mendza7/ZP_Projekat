@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.asymmetric.dsa import *
 from Crypto.PublicKey.ElGamal import generate
 import secrets
 
-from compression.utils import format_bytes, return_to_original
+from compression.utils import bin2hex, hex2bin
 
 
 # Compute the GCD
@@ -61,10 +61,10 @@ class ElGamalDSA():
 
 
     def encrypt(self,message:bytes,p,g,y):
-       return [self._encrypt(ord(i),p,g,y) for i in format_bytes(message)]
+       return [self._encrypt(ord(i),p,g,y) for i in bin2hex(message)]
 
-    def decrypt(self, cypher,p,g,x):
-        return return_to_original("".join([chr(self._decrypt(i,p,g,x)) for i in cypher]))
+    def decrypt(self, cypher,p,g,x,y):
+        return hex2bin("".join([chr(self._decrypt(i,p,g,x,y)) for i in cypher]))
 
     def _encrypt(self,message:int, p,g,y,key=None)->tuple:
         # p = int(self.elGamalPrivate.p)
@@ -77,7 +77,7 @@ class ElGamalDSA():
         b = (message * pow(y, key, p)) % p
         return (a,b)
 
-    def _decrypt(self, tup:tuple,p,g,x):
+    def _decrypt(self, tup:tuple,p,g,x,y):
         # p = int(self.elGamalPrivate.p)
         r = random.randrange(2, p - 1)
         # g = int(self.elGamalPrivate.g)
@@ -87,7 +87,7 @@ class ElGamalDSA():
 
         plaintext_blind = (tup[1] * inverse(ax, p)) % p
 
-        y = int(self.elGamalPrivate.y)
+        # y = int(self.elGamalPrivate.y)
         plaintext = (plaintext_blind * pow(y, r, p)) % p
         return plaintext
 
@@ -110,12 +110,12 @@ def int_to_bytes(num, chunk_size_bits=31):
 
     return bytes(bytes_arr)
 
-if __name__ == '__main__':
-    lgma=ElGamalDSA(1024)
-    message = 'Proba proba proba proba'
-    sign = lgma.sign(message)
-    encrypt = lgma.encrypt(sign)
-    decrypt = lgma.decrypt(encrypt)
-
-    verified = lgma.verify(decrypt,message.encode('utf-8'))
-    print(verified)
+# if __name__ == '__main__':
+#     lgma=ElGamalDSA(1024)
+#     message = 'Proba proba proba proba'
+#     sign = lgma.sign(message)
+#     encrypt = lgma.encrypt(sign)
+#     decrypt = lgma.decrypt(encrypt)
+#
+#     verified = lgma.verify(decrypt,message.encode('utf-8'))
+#     print(verified)

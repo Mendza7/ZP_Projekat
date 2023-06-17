@@ -333,16 +333,23 @@ def receive_message():
         if conver:
             data = original_data(data['message'])
             data = json.loads(data['message'])
+            write_to_json('after_de_conv.json',data)
+        else:
+            data=data['message']
 
         if encr:
             session = decrypt_session(data['session'])
             data['message'] = decrypt_with_session(encr_alg, data['message'], session['key'], session['iv']).decode("utf-8")
+            write_to_json('after_de_encr.json',data)
+
 
         if compr:
             data = {
                 "session": data['session'],
                 "message": decompress_data(data['message'])
             }
+            write_to_json('after_de_compr.json',data)
+
 
         if auth:
             if not isinstance(data['message'],dict):
@@ -353,8 +360,33 @@ def receive_message():
             message=msg['message']
             signature=msg['signature']
             verified = verify_signature(message, signature, auth_alg)
+            write_to_json('after_de_auth.json',data)
             print(verified)
-            print(data['message'])
+        # print message here
+        else:
+            data = data['message']
+
+        if isinstance(data,str):
+            data = json.loads(data)
+
+        show_received_message(data['message'],"MesaBOSSS")
+
+
+def show_received_message(message,from_person=""):
+    # create a new Toplevel window
+    popup = tk.Toplevel()
+
+    message_label = tk.Label(popup,text=f"From:{from_person}")
+    message_label.pack()
+    tk.Text(popup)
+    # create a Text widget
+    message_text = tk.Text(popup, height=30, width=100)
+
+    # insert a large text message into the Text widget
+    message_text.insert(tk.END, f"Received message:{message}")
+
+    # place the Text widget in the popup window
+    message_text.pack()
 
 
 
@@ -547,6 +579,9 @@ def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user
             "message": json.dumps({"signature": signature,
                                    "message": message})
         }
+        print(json.dumps(data))
+        write_to_json('after_auth.json',data)
+
 
     if comp:
         data = {
@@ -554,16 +589,22 @@ def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user
             "message": compress_data(data['message'])
         }
         print(json.dumps(data))
+        write_to_json('after_comp.json',data)
+
 
     if encr:
         data['message'] = encrypt_with_session(data['message'], encr_alg, {"key": key, "iv": iv})
         print(json.dumps(data))
+        write_to_json('after_encr.json',data)
+
 
     if conv:
         data = {
             "message": convert_data(data)
         }
         print(json.dumps(data))
+        write_to_json('after_conv.json',data)
+
 
     final_message = {
         "header": header,
@@ -572,6 +613,10 @@ def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user
     print(json.dumps(final_message))
 
     file_path = filedialog.asksaveasfilename()
+    write_to_json(file_path, final_message)
+
+
+def write_to_json(file_path, final_message):
     with open(file_path, "w") as new_file:
         json.dump(final_message, new_file)
 
