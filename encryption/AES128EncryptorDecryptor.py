@@ -41,12 +41,11 @@ class AES128EncryptorDecryptor:
         # Decrypt the ciphertext
         padded_plaintext = decryptor.update(ciphertext) + decryptor.finalize()
 
-        # Remove PKCS7 padding from the decrypted plaintext
         unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
-        plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
+        unpadded_plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
 
         # Return the plaintext
-        return plaintext
+        return unpadded_plaintext
 
 
 if __name__=='__main__':
@@ -57,12 +56,12 @@ if __name__=='__main__':
 
     # Encrypt a plaintext
     plaintext = 'This is the message to be encrypted.asdasdasdasd'
-    ciphertext = AES128EncryptorDecryptor.encrypt(plaintext,key,iv)
+    ciphertext = AES128EncryptorDecryptor.encrypt(plaintext,iv,key)
 
     print("Plaintext:", plaintext)
     print("Ciphertext:", ciphertext)
 
     # Decrypt the ciphertext
-    decrypted_plaintext = AES128EncryptorDecryptor.decrypt(ciphertext,key,iv)
+    decrypted_plaintext = AES128EncryptorDecryptor.decrypt(ciphertext,iv,key)
 
     print("Decrypted plaintext:", decrypted_plaintext)

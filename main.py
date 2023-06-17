@@ -1,4 +1,5 @@
 import json
+import pprint
 import re
 import time
 import tkinter as tk
@@ -282,9 +283,11 @@ def display_public_key_ring():
 
 def decrypt_with_session(algorithm,message,key, iv):
     if algorithm == algs[0]:
-        return AES128EncryptorDecryptor.decrypt(return_to_original(message),key,iv)
+        original = return_to_original(message)
+        return AES128EncryptorDecryptor.decrypt(original, key, iv)
     else:
-        return CAST5EncryptorDecryptor.decrypt(return_to_original(message),key,iv)
+        to_original = return_to_original(message)
+        return CAST5EncryptorDecryptor.decrypt(to_original, key, iv)
     
 
 
@@ -326,7 +329,7 @@ def receive_message():
         if conver:
             data = original_data(data)
 
-        data = json.loads(data['message'])
+            data = json.loads(data['message'])
 
         if encr:
             session = decrypt_session(data['session'])
@@ -428,8 +431,8 @@ def send_message(root):
 
     save_button = tk.Button(new_window, text="Save file",
                             command=lambda: save_file(True, True, True, True,
-                                                      'rsa', 'aes', 'asd123asd',
-                                                      selected_sender.get(), selected_receiver.get()))
+                                                      'rsa', 'AES', 'asd123asd',
+                                                      selected_sender, selected_receiver))
 
     # Buttons for save and cancel
     # save_button = tk.Button(new_window, text="Save file",
@@ -497,9 +500,9 @@ def encrypt_with_session(message,alg,session):
     key = session["key"]
     iv = session["iv"]
     if alg == algs[0]:
-        return format_bytes(AES128EncryptorDecryptor.encrypt(message, iv, key))
+        return format_bytes(AES128EncryptorDecryptor.encrypt(message, key, iv))
     else:
-        return format_bytes(CAST5EncryptorDecryptor.encrypt(message, iv, key))
+        return format_bytes(CAST5EncryptorDecryptor.encrypt(message, key, iv))
 
 
 def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user, pub_key_user):
@@ -529,21 +532,24 @@ def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user
             "session":session,
             "message":compress_data(signature,message)
         }
+        print(json.dumps(data))
 
     if encr:
         data['message'] = encrypt_with_session(data['message'],encr_alg,{"key":key,"iv":iv})
+        print(json.dumps(data))
 
     if conv:
         data = {
             "message":convert_data(data)
         }
+        print(json.dumps(data))
 
 
     final_message= {
         "header":header,
         "message":json.dumps(data)
     }
-
+    print(json.dumps(final_message))
 
     file_path = filedialog.asksaveasfilename()
     with open(file_path, "w") as new_file:
