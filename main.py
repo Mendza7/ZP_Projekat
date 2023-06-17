@@ -357,8 +357,11 @@ def send_message(root):
         new_window.destroy()
 
     # List of receivers
-    receivers = list({key: value for key, value in users.items() if value is not None})
+
+    senders = list({key: value.auth_priv for key, value in users.items() if value is not None})
+    receivers = list({key: value.auth_pub for key, value in users.items() if value is not None})
     if len(receivers) == 0:
+        messagebox.showwarning("Warning", "No possible receivers! Please create a user")
         return
 
     # Create from and to selection
@@ -379,12 +382,14 @@ def send_message(root):
     password_field = tk.Entry(new_window, show='*')
     password_field.pack()
 
-    to_label = tk.Label(new_window, text="To:")
+    auth_label = tk.Label(new_window, text="Encryption")
+    auth_label.pack()
+    to_label = tk.Label(new_window, text="Receiver's public key: ")
     to_label.pack()
-    to_var = tk.StringVar(new_window)
-    to_var.set(receivers[0])  # default value
-    to_menu = tk.OptionMenu(new_window, to_var, *receivers)
-    to_menu.pack()
+    selected_receiver = tk.StringVar(new_window)
+    selected_receiver.set(receivers[0])  # default value
+    receiver_menu = tk.OptionMenu(new_window, selected_receiver, *receivers)
+    receiver_menu.pack()
 
     # Checkboxes
     auth_var = tk.BooleanVar()
@@ -503,7 +508,6 @@ def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user
 
     signature = sender.sign_message(message)
     session,message,key,iv = build_message_and_session(message,encr_alg,receiver)
-
 
 
     data = {
