@@ -8,20 +8,15 @@ import os
 class AES128EncryptorDecryptor:
     @staticmethod
     def encrypt(plaintext,iv,key):
-        # Create an AES cipher object with CBC mode and the provided key
         cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
         plaintext = plaintext.encode('utf-8')
-        # Create an encryptor object
         encryptor = cipher.encryptor()
 
-        # Apply PKCS7 padding to the plaintext
         padder = padding.PKCS7(algorithms.AES.block_size).padder()
         padded_plaintext = padder.update(plaintext) + padder.finalize()
 
-        # Encrypt the padded plaintext
         ciphertext = encryptor.update(padded_plaintext) + encryptor.finalize()
 
-        # Return the IV and ciphertext
         return ciphertext
 
     @staticmethod
@@ -41,24 +36,19 @@ class AES128EncryptorDecryptor:
         unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
         unpadded_plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
 
-        # Return the plaintext
         return unpadded_plaintext
 
 
 if __name__=='__main__':
-    # Example usage
     iv,key = AES128EncryptorDecryptor.generate_iv_and_key()
 
-    # Create an instance of AES128EncryptorDecryptor
 
-    # Encrypt a plaintext
     plaintext = 'This is the message to be encrypted.asdasdasdasd'
     ciphertext = AES128EncryptorDecryptor.encrypt(plaintext,iv,key)
 
     print("Plaintext:", plaintext)
     print("Ciphertext:", ciphertext)
 
-    # Decrypt the ciphertext
     decrypted_plaintext = AES128EncryptorDecryptor.decrypt(ciphertext,iv,key)
 
     print("Decrypted plaintext:", decrypted_plaintext)

@@ -4,13 +4,14 @@ import time
 import bcrypt
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
 from auth.ElGamal import ElGamalDSA
-from auth.utils import sha1_hash
+from auth.utils import sha1_hash, custom_private_key_header_footer, custom_public_key_header_footer, \
+    format_password_for_encryption
 from compression.utils import bin2hex, hex2bin
 
 
@@ -47,11 +48,11 @@ class User:
             return self.auth_priv
         return None
 
-    def set_public_key(self, public_key):
+    def set_public_rsa_key(self, public_key):
         self.auth_pub = public_key
-        self.key_id = User.generate_key_id(public_key)
+        self.key_id = User.generate_key_id(public_key,'rsa')
 
-    def set_private_key(self, private_key: RSAPrivateKey):
+    def set_private_rsa_key(self, private_key: RSAPrivateKey):
         self.auth_priv = private_key
         self.auth_key_size = private_key.key_size
 
@@ -66,16 +67,46 @@ class User:
     def verify_password(self, entered_password):
         return bcrypt.checkpw(entered_password.encode(), self.priv_pass)
 
+
+
+    def export_rsa_private_key_to_pem(self):
+        decode = self.auth_priv.private_bytes(encoding=serialization.Encoding.PEM,
+                                              format=serialization.PrivateFormat.PKCS8,
+                                              encryption_algorithm=serialization.BestAvailableEncryption(password=format_password_for_encryption(self.priv_pass.decode()))).decode()
+        return custom_private_key_header_footer(decode,'RSA')
+
+    def export_rsa_public_key_to_pem(self):
+        decode = self.auth_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                              format=serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+        return custom_public_key_header_footer(decode, 'RSA')
+
+    def export_multiple_keys_to_pem(self, filepath='combined_keys.pem'):
+        combined_pem = self.export_rsa_private_key_to_pem()+self.export_rsa_public_key_to_pem()
+        with open('%s' % filepath, 'w') as f:
+            f.write(combined_pem)
+
+    def import_rsa_key_from_pem(self,pem_file_path):
+        with open(pem_file_path, 'r') as f:
+            pem_data = f.read()
+        rsa_private_key_pem = pem_data.split('-----BEGIN RSA PRIVATE KEY-----')[1].split('-----END RSA PRIVATE KEY-----')[
+            0].strip()
+        rsa_public_key_pem = pem_data.split('-----BEGIN RSA PUBLIC KEY-----')[1].split('-----END RSA PUBLIC KEY-----')[
+            0].strip()
+        rsa_private_key,rsa_public_key = None,None
+        if len(rsa_private_key_pem):
+            rsa_private_key = self.load_rsa_private_key(rsa_private_key_pem)
+        if len(rsa_public_key_pem):
+            rsa_public_key = self.load_rsa_public_key(rsa_public_key_pem)
+
+        return [rsa_private_key,rsa_public_key]
     @staticmethod
     def generate_key_id(public_key, alg=None):
-        # Mask to get the least significant 64 bits
         mask = (1 << 64) - 1
         if alg == 'rsa':
             if public_key is not None:
                 modulus = public_key.public_numbers().n
 
 
-                # Extract the least significant 64 bits by performing bitwise AND with the mask
                 least_significant_64_bits = modulus & mask
                 print(least_significant_64_bits)
                 return least_significant_64_bits
@@ -151,24 +182,29 @@ class User:
         else:
             return self.elGamal.decrypt_private(pickle.loads(cypher))
 
-if __name__ == '__main__':
+    def load_rsa_public_key(self, rsa_public_key_pem):
+        rsa_public_key = serialization.load_pem_public_key(
+            ("-----BEGIN PUBLIC KEY-----\n" + rsa_public_key_pem + "\n-----END PUBLIC KEY-----").encode(),
+            backend=default_backend()
+        )
+        return rsa_public_key
 
+    def load_rsa_private_key(self, rsa_private_key_pem):
+        rsa_private_key = serialization.load_pem_private_key(
+            ("-----BEGIN ENCRYPTED PRIVATE KEY-----\n" + rsa_private_key_pem + "\n-----END ENCRYPTED PRIVATE KEY-----").encode(),
+            password=format_password_for_encryption(self.priv_pass.decode()),
+            backend=default_backend()
+        )
+        return rsa_private_key
+
+
+if __name__ == '__main__':
     user = User('merisa', 'm@gmail.com', 'rsa')
     message = "Hello, World!"
-
-    # Sign the message
-    signature = user.sign_message(message)
-
-    # Extract the necessary information from the signature
-    timestamp = signature["timestamp"]
-    key_id = signature["key_id"]
-    enc_hash = signature["encrypted_hash"]
-
-    # Verify the signature
-    verification_result = user.verify(message, enc_hash, 'rsa')
-
-    # Print the verification result
-    if verification_result:
-        print("Signature is valid.")
-    else:
-        print("Signature is invalid.")
+    sign_message = user.sign_message(message)
+    user.export_multiple_keys_to_pem('test.pem')
+    pem = user.import_rsa_key_from_pem('test.pem')
+    user.set_public_rsa_key(pem[1])
+    user.set_private_rsa_key(pem[0])
+    print(user.verify(message=message,enc_hash=sign_message['encrypted_hash'],alg='rsa'))
+    print(user)

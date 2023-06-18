@@ -14,12 +14,12 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from User import User
+from auth.utils import format_password_for_encryption
 from compression.utils import *
 from encryption.AES128EncryptorDecryptor import AES128EncryptorDecryptor
 from encryption.CAST5EncryptorDecryptor import CAST5EncryptorDecryptor
 from exportKey import ExportDialog
 
-# All users
 
 users = {}
 algs = ['AES', 'CAST']
@@ -120,19 +120,7 @@ class ImportDialog(tk.Toplevel):
         self.destroy()
 
     def load_private_key_with_password(self, pem_data, password):
-        password_provided = password.encode()
-        salt = b'SomeRandomSalt'  # Replace with your own salt
-
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=100000,  # Adjust the number of iterations as per your requirement
-            backend=default_backend()
-        )
-
-        # Derive a key from the provided password and salt
-        key = kdf.derive(password_provided)
+        key = format_password_for_encryption(password)
 
         try:
             private_key = serialization.load_pem_private_key(pem_data, password=key, backend=default_backend())
@@ -141,7 +129,6 @@ class ImportDialog(tk.Toplevel):
             return None
 
 
-# Functions for key generation, import/export, encryption/decryption, and signing/verification
 def match_email_format(email):
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     if re.match(pattern, email):
@@ -554,7 +541,6 @@ def show_received_message(message, signed, verified, from_person="", ):
         message = json.loads(message)
 
     time = str((datetime.utcfromtimestamp(message['timestamp']))).split(".")[0]
-    # create a new Toplevel window
     popup = tk.Toplevel()
 
     message_label = tk.Label(popup, text=f"From:{from_person}")
@@ -658,15 +644,6 @@ def send_message(root):
     input_label.pack()
     input_field = tk.Entry(new_window)
     input_field.pack()
-
-    # # hardcoded save
-    # selected_sender = senders[0]
-    # selected_receiver = receivers[0]
-    #
-    # save_button = tk.Button(new_window, text="Save file",
-    #                         command=lambda: save_file(True, True, True, True,
-    #                                                   'rsa', 'AES', 'asd123asd',
-    #                                                   selected_sender, selected_receiver))
 
     save_button = tk.Button(new_window, text="Save file",
                             command=lambda: save_file(auth_var.get(), encr_var.get(), comp_var.get(), conv_var.get(),
@@ -815,7 +792,6 @@ def write_to_json(file_path, final_message):
         json.dump(final_message, new_file)
 
 
-# GUI layout and elements
 if __name__ == '__main__':
     root = tk.Tk()
     root.title("PGP Email Encryption")
@@ -823,15 +799,12 @@ if __name__ == '__main__':
     window_width = 300
     window_height = 300
 
-    # Get the screen width and height
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
 
-    # Calculate the x and y coordinates to center the window
     x = (screen_width // 2) - (window_width // 2)
     y = (screen_height // 2) - (window_height // 2)
 
-    # Set the window geometry to center the window
     root.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
     generate_key_button = tk.Button(root, text="Generate Key Pair", command=generate_key_pair)

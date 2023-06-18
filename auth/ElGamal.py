@@ -11,35 +11,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.dsa import *
 
+from auth.utils import int_to_bytes, bytes_to_int,custom_private_key_header_footer,custom_public_key_header_footer
 from compression.utils import bin2hex, hex2bin
-
-
-# Compute the GCD
-def gcd(a, b):
-    if a < b:
-        return gcd(b, a)
-    elif a % b == 0:
-        return b
-    else:
-        return gcd(b, a % b)
-
-
-def gen_key(q):
-    key = random.randint(pow(10, 20), q)
-    while gcd(q, key) != 1:
-        key = random.randint(pow(10, 20), q)
-    return key
-
-
-def power(a, b, c):
-    x = 1
-    y = a
-    while b > 0:
-        if b % 2 == 0:
-            x = (x * y) % c
-        y = (y * y) % c
-        b = int(b / 2)
-    return x % c
 
 
 class ElGamalDSA():
@@ -52,7 +25,7 @@ class ElGamalDSA():
             self.DSAPublic = self.DSAPrivate.public_key()
             self.elGamalPublic = self.elGamalPrivate.publickey()
             self.h = pow(self.elGamalPrivate.g, self.elGamalPrivate.x, self.elGamalPrivate.p)
-        elif DSAPrivate is not None and elGamalPrivate is not None and DSAPublic is not None and elGamalPublic is not None:
+        elif keySize is None:
             self.keySize = DSAPrivate.key_size
             self.DSAPrivate = DSAPrivate
             self.elGamalPrivate = elGamalPrivate
@@ -88,22 +61,16 @@ class ElGamalDSA():
         return [self._encrypt(ord(i), p, g, y) for i in bin2hex(message)]
 
     def _encrypt(self, message: int, p, g, y, key=None) -> tuple:
-        # p = int(self.elGamalPrivate.p)
         if key is None:
             key = random.randint(1, p - 2)
 
-        # g = int(self.elGamalPrivate.g)
         a = pow(g, key, p)
-        # y = int(self.elGamalPrivate.y)
         b = (message * pow(y, key, p)) % p
         return (a, b)
 
     def _decrypt(self, tup: tuple, p, g, x, y):
-        # p = int(self.elGamalPrivate.p)
         r = random.randrange(2, p - 1)
-        # g = int(self.elGamalPrivate.g)
         a_blind = (tup[0] * pow(g, r, p)) % p
-        # x = int(self.elGamalPrivate.x)
         ax = pow(a_blind, x, p)
 
         plaintext_blind = (tup[1] * inverse(ax, p)) % p
@@ -160,16 +127,10 @@ class ElGamalDSA():
         return (f"p:{int(self.elGamalPublic.p)}\n g:{int(self.elGamalPublic.g)}\ny:{int(self.elGamalPublic.y)}")
 
     def export_multiple_keys_to_pem(self, filepath='combined_keys.pem'):
-        dsa_private_key_pem = self.DSAPrivate.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        ).decode()
 
-        dsa_public_key_pem = self.DSAPublic.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        ).decode()
+        dsa_private_key_pem = self.export_dsa_private_to_pem()
+
+        dsa_public_key_pem = self.export_dsa_public_to_pem()
 
         elgamal_private_key_pem = self.export_elgamal_private_key_to_pem()
         elgamal_public_key_pem = self.export_elgamal_public_key_to_pem()
@@ -178,6 +139,23 @@ class ElGamalDSA():
 
         with open('%s' % filepath, 'w') as f:
             f.write(combined_pem)
+
+    def export_dsa_public_to_pem(self):
+        dsa_public_key_pem = self.DSAPublic.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        ).decode()
+        dsa_public_key_pem = custom_public_key_header_footer(dsa_public_key_pem, 'DSA')
+        return dsa_public_key_pem
+
+    def export_dsa_private_to_pem(self):
+        dsa_private_key_pem = self.DSAPrivate.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        ).decode()
+        dsa_private_key_pem = custom_private_key_header_footer(dsa_private_key_pem, 'DSA')
+        return dsa_private_key_pem
 
     @staticmethod
     def import_elgamal_key(pem_data):
@@ -192,28 +170,40 @@ class ElGamalDSA():
 
         return key
 
-    def import_keys_from_pem(pem_file_path):
+    def import_keys_from_pem(pem_file_path:str):
         with open(pem_file_path, 'r') as f:
             pem_data = f.read()
         dsa_private_key, elgamal_private_key, dsa_public_key, elgamal_public_key = None,None,None,None
-
-        dsa_private_key_pem = pem_data.split('-----BEGIN PRIVATE KEY-----')[1].split('-----END PRIVATE KEY-----')[
-            0].strip()
-        dsa_public_key_pem = pem_data.split('-----BEGIN PUBLIC KEY-----')[1].split('-----END PUBLIC KEY-----')[
-            0].strip()
-        elgamal_private_key_pem = \
-            pem_data.split('-----BEGIN ELGAMAL PRIVATE KEY-----')[1].split('-----END ELGAMAL PRIVATE KEY-----')[
+        dsa_private_key_pem,dsa_public_key_pem,elgamal_private_key_pem,elgamal_public_key_pem = None,None,None,None
+        try:
+            dsa_private_key_pem = pem_data.split('-----BEGIN DSA PRIVATE KEY-----')[1].split('-----END DSA PRIVATE KEY-----')[
                 0].strip()
-        elgamal_public_key_pem = \
-            pem_data.split('-----BEGIN ELGAMAL PUBLIC KEY-----')[1].split('-----END ELGAMAL PUBLIC KEY-----')[0].strip()
-        if len(dsa_private_key_pem):
+        except:
+            pass
+        try:
+            dsa_public_key_pem = pem_data.split('-----BEGIN DSA PUBLIC KEY-----')[1].split('-----END DSA PUBLIC KEY-----')[
+                0].strip()
+        except:
+            pass
+        try:
+            elgamal_private_key_pem = \
+                pem_data.split('-----BEGIN ELGAMAL PRIVATE KEY-----')[1].split('-----END ELGAMAL PRIVATE KEY-----')[
+                    0].strip()
+        except:
+            pass
+        try:
+            elgamal_public_key_pem = \
+                pem_data.split('-----BEGIN ELGAMAL PUBLIC KEY-----')[1].split('-----END ELGAMAL PUBLIC KEY-----')[0].strip()
+        except:
+            pass
+        if dsa_private_key_pem is not None:
             dsa_private_key = ElGamalDSA.load_dsa_private_key(dsa_private_key_pem)
-        if len(dsa_public_key_pem):
+        if dsa_public_key_pem is not None:
             dsa_public_key = ElGamalDSA.load_dsa_public_key(dsa_public_key_pem)
 
-        if len(elgamal_private_key_pem):
+        if elgamal_private_key_pem is not None:
             elgamal_private_key = ElGamalDSA.import_elgamal_key(elgamal_private_key_pem)
-        if len(elgamal_public_key_pem):
+        if elgamal_public_key_pem is not None:
             elgamal_public_key = ElGamalDSA.import_elgamal_key(elgamal_public_key_pem)
 
         return [None,dsa_private_key,elgamal_private_key, dsa_public_key , elgamal_public_key]
@@ -233,35 +223,6 @@ class ElGamalDSA():
         )
         return dsa_private_key
 
-
-def int_to_bytes(num, chunk_size_bits=31):
-    chunk_size_bytes = (chunk_size_bits + 7) // 8
-
-    chunks = []
-    while num:
-        chunks.append(num & ((1 << chunk_size_bits) - 1))
-        num = num >> chunk_size_bits
-
-    # Convert each chunk into bytes
-    bytes_arr = bytearray()
-    for chunk in reversed(chunks):
-        bytes_arr += chunk.to_bytes(chunk_size_bytes, 'big')
-
-    return bytes(bytes_arr)
-
-def bytes_to_int(bytes_arr, chunk_size_bits=31):
-    # Convert chunk size to bytes
-    chunk_size_bytes = (chunk_size_bits + 7) // 8
-
-    # Split the bytes array into chunks
-    chunks = [bytes_arr[i:i+chunk_size_bytes] for i in range(0, len(bytes_arr), chunk_size_bytes)]
-
-    # Convert each chunk into an integer
-    num = 0
-    for chunk in chunks:
-        num = (num << chunk_size_bits) | int.from_bytes(chunk, 'big')
-
-    return num
 
 if __name__ == '__main__':
     lgma = ElGamalDSA(1024)

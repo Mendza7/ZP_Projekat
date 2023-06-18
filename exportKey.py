@@ -5,6 +5,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+from auth.utils import format_password_for_encryption
+
 
 class ExportDialog(tk.Toplevel):
     def __init__(self, parent, users):
@@ -63,21 +65,8 @@ class ExportDialog(tk.Toplevel):
                 key = user.get_private_key(password)
                 key_name = f"{selected_user}_private_key.pem"
 
-                password_provided = password.encode()
-                salt = b'SomeRandomSalt'  # Replace with your own salt
+                encrypt_key = format_password_for_encryption(password)
 
-                kdf = PBKDF2HMAC(
-                    algorithm=hashes.SHA256(),
-                    length=32,
-                    salt=salt,
-                    iterations=100000,  # Adjust the number of iterations as per your requirement
-                    backend=default_backend()
-                )
-
-                # Derive a key from the provided password and salt
-                encrypt_key = kdf.derive(password_provided)
-
-                # Serialize and encrypt the private key using the derived key
                 pem_data = key.private_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PrivateFormat.PKCS8,
@@ -106,7 +95,7 @@ class ExportDialog(tk.Toplevel):
         self.destroy()
 
 
-# Example usage
+
 
 
 
