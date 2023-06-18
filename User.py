@@ -26,9 +26,9 @@ class User:
             )
             public_key = private_key.public_key()
             self.key_id = User.generate_key_id(public_key,'rsa')
-        elif algorithm =='elgamala':
+        elif algorithm =='elgamal':
             self.elGamal:ElGamalDSA = ElGamalDSA(key_size)
-            self.key_id = User.generate_key_id(int(self.elGamal.elGamalPublic.y),'elgamala')
+            self.key_id = User.generate_key_id(int(self.elGamal.elGamalPublic.y),'elgamal')
 
         self.timestamp = time.time()
         self.name = name
@@ -81,6 +81,7 @@ class User:
                 return least_significant_64_bits
         else:
             least_significant_64_bits = public_key & mask
+            print(least_significant_64_bits)
             return least_significant_64_bits
 
     def sign_message(self, message):

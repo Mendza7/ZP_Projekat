@@ -151,29 +151,88 @@ def match_email_format(email):
 
 
 def generate_key_pair():
-    global i
-    key_size = 1024
-    name = 'a' + str(i)
-    # email = ""
-    # password = ""
-    email = f'a{i}@a.com'
-    password = '123'
-    i = i + 1
-    while len(name) < 1:
-        name = simpledialog.askstring("Name", "Enter your name:")
-    while not match_email_format(email):
-        email = simpledialog.askstring("Email", "Enter your email:")
-    while key_size not in [1024, 2048]:
-        if (key_size == None):
-            messagebox.showerror("Exiting, please try again!")
-            return
-        key_size = simpledialog.askinteger("Key Size", "Enter key size (1024 or 2048):", minvalue=1024, maxvalue=2048)
-    while len(password) < 1:
-        password = simpledialog.askstring("Password",
-                                          "Enter a password of at least 1 character in length to protect your private key:",
-                                          show="*")
+    new_window = tk.Tk()
+    new_window.title("Generate key pair")
 
-    users[email] = User(name=name, email=email, algorithm='elgamala', key_size=key_size, password=password)
+    window_width = 300
+    window_height = 500
+
+    screen_width = new_window.winfo_screenwidth()
+    screen_height = new_window.winfo_screenheight()
+
+    x = (screen_width // 2) - (window_width // 2)
+    y = (screen_height // 2) - (window_height // 2)
+
+    new_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+
+    def submit():
+        name = name_entry.get()
+        email = email_entry.get()
+        password = password_entry.get()
+        algorithm = algorithm_var.get()
+        if algorithm=='RSA':
+            algorithm='rsa'
+        else:
+            algorithm='elgamal'
+
+        keysize=keysize_var.get()
+
+        while len(name) < 1:
+             name = simpledialog.askstring("Name", "Name can't be empty. Please enter your name.")
+        while not match_email_format(email) or users.get(email, None):
+             email = simpledialog.askstring("Email", "Enter valid email:")
+
+        while len(password) < 1:
+            password = simpledialog.askstring("Password",
+                                              "Enter a password of at least 1 character in length to protect your private key:",
+                                              show="*")
+
+        users[email] = User(name=name, email=email, algorithm=algorithm, key_size=keysize, password=password)
+        print("Name:", name)
+        print("Email:", email)
+        print("Password:", password)
+        print("Algorithm:", algorithm)
+        print("keysize:", keysize)
+        print(users[email])
+
+    def cancel_action():
+        new_window.destroy()
+
+    name_label = ttk.Label(new_window, text="Enter your name: ")
+    name_label.pack()
+    name_entry = ttk.Entry(new_window)
+    name_entry.pack()
+
+    email_label = ttk.Label(new_window, text="Email:")
+    email_label.pack()
+    email_entry = ttk.Entry(new_window)
+    email_entry.pack()
+
+    password_label = ttk.Label(new_window, text="Password:")
+    password_label.pack()
+    password_entry = ttk.Entry(new_window, show="*")
+    password_entry.pack()
+
+
+    algorithm_label = ttk.Label(new_window, text="Algorithm:")
+    algorithm_label.pack()
+    algorithm_var = tk.StringVar(new_window)
+    algorithm_var.set("RSA")
+    algorithm_combobox = ttk.Combobox(new_window, textvariable=algorithm_var, values=["RSA", "DSA+ElGamal"], state="readonly")
+    algorithm_combobox.pack()
+
+    keysize_label = ttk.Label(new_window, text="Key size:")
+    keysize_label.pack()
+    keysize_var = tk.IntVar(new_window)
+    keysize_var.set(1024)
+    keysize_combobox = ttk.Combobox(new_window, textvariable=keysize_var, values=["1024", "2048"], state="readonly")
+    keysize_combobox.pack()
+
+    submit_button = ttk.Button(new_window, text="Submit", command=submit)
+    submit_button.pack()
+
+    root.mainloop()
+
 
     print(users)
 
@@ -199,7 +258,6 @@ def open_export_dialog():
 
 
 def display_private_key_ring():
-
     def show_text_preview(text):
         preview_window = tk.Toplevel(root)
         preview_window.title("Text Preview")
@@ -232,7 +290,8 @@ def display_private_key_ring():
     root.title('Private Keyring')
 
     tree = ttk.Treeview(root)
-    tree["columns"] = ("Timestamp", "Key ID", "Public Key", "Encrypted Private Key", "User ID", "Algorithm", "additional")
+    tree["columns"] = (
+    "Timestamp", "Key ID", "Public Key", "Encrypted Private Key", "User ID", "Algorithm", "additional")
 
     tree.heading("Timestamp", text="Timestamp")
     tree.heading("Key ID", text="Key ID")
@@ -257,7 +316,7 @@ def display_private_key_ring():
         if user is not None:
             timestamp = str(user.timestamp).split(".")[0]
             key_id = user.key_id
-            if user.auth_alg=='rsa':
+            if user.auth_alg == 'rsa':
                 pem_pub = user.auth_pub.public_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PublicFormat.SubjectPublicKeyInfo
@@ -284,14 +343,15 @@ def display_private_key_ring():
                 )
                 encrypted_private_key = ''.join(map(lambda a: a.decode('utf-8'), pem_priv.splitlines()[1:-1]))
 
-                p=user.elGamal.elGamalPrivate.p
-                g=user.elGamal.elGamalPrivate.g
-                x=user.elGamal.elGamalPrivate.x
-                y=user.elGamal.elGamalPrivate.y
-                alg="DSA+ElGamal"
-                elgamal_params=f"p = {p}\ng={g}\nx={x}\ny={y}"
+                p = user.elGamal.elGamalPrivate.p
+                g = user.elGamal.elGamalPrivate.g
+                x = str(user.elGamal.elGamalPrivate.x)
+                y = user.elGamal.elGamalPrivate.y
+                alg = "DSA+ElGamal"
+                elgamal_params = f"p = {p}\ng={g}\nx={x}\ny={y}"
 
-            tree.insert("", tk.END, values=(timestamp, key_id, public_key, encrypted_private_key, email, alg, elgamal_params))
+            tree.insert("", tk.END,
+                        values=(timestamp, key_id, public_key, encrypted_private_key, email, alg, elgamal_params))
 
     tree.bind("<Button-1>", column_click)
 
@@ -325,6 +385,7 @@ def display_public_key_ring():
                 item = tree.identify_row(event.y)
                 elgamal_params = tree.item(item)["values"][5]
                 show_text_preview(elgamal_params)
+
     root = tk.Tk()
     root.title('Public Keyring')
 
@@ -353,14 +414,14 @@ def display_public_key_ring():
         if user is not None:
             timestamp = str(user.timestamp).split(".")[0]
             key_id = user.key_id
-            if user.auth_alg=='rsa':
+            if user.auth_alg == 'rsa':
                 pem_pub = user.auth_pub.public_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PublicFormat.SubjectPublicKeyInfo
                 )
                 public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
-                alg="RSA"
-                elgamal_params=""
+                alg = "RSA"
+                elgamal_params = ""
 
             else:
                 pem_pub = user.elGamal.DSAPublic.public_bytes(
@@ -371,8 +432,8 @@ def display_public_key_ring():
                 p = user.elGamal.elGamalPrivate.p
                 g = user.elGamal.elGamalPrivate.g
                 y = user.elGamal.elGamalPrivate.y
-                alg="DSA+ElGamal"
-                elgamal_params=f"p = {p}\ng={g}\nx={x}\ny={y}"
+                alg = "DSA+ElGamal"
+                elgamal_params = f"p = {p}\ng={g}\ny={y}"
             tree.insert("", tk.END, values=(timestamp, key_id, public_key, email, alg, elgamal_params))
 
     tree.bind("<Button-1>", column_click)
@@ -392,7 +453,9 @@ def decrypt_with_session(algorithm, message, key, iv):
 
 def decrypt_session(session):
     user = find_user_by_id(session['key_id'])
-
+    password = simpledialog.askstring("Password", "Enter your password: ", show="*")
+    if not user.verify_password(password):
+        return None
     return {
         "key_id": session['key_id'],
         "key": hex2bin(user.decrypt_private(hex2bin(session['key']))),
@@ -409,6 +472,13 @@ def find_user_by_id(key_id) -> User:
     if user is None:
         raise ValueError
     return user
+
+
+def check_supported_algorithm(key_id, alg):
+    user = find_user_by_id(key_id)
+    if user.auth_alg == alg:
+        return True
+    return False
 
 
 def receive_message():
@@ -438,6 +508,13 @@ def receive_message():
 
         if encr:
             session = decrypt_session(data['session'])
+            if session is None:
+                messagebox.showwarning("Warning", "Incorrect password!")
+                return
+            supported = check_supported_algorithm(session['key_id'], auth_alg)
+            if not supported:
+                messagebox.showwarning("Warning", "Unsupported algorithm for this user!")
+                return
             data['message'] = decrypt_with_session(encr_alg, data['message'], session['key'], session['iv']).decode(
                 "utf-8")
             write_to_json('after_de_encr.json', data)
@@ -449,7 +526,7 @@ def receive_message():
             }
             write_to_json('after_de_compr.json', data)
 
-        verified=False
+        verified = False
         from_user = "unknown"
         if auth:
             if not isinstance(data['message'], dict):
@@ -524,7 +601,6 @@ def send_message(root):
     def cancel_action():
         new_window.destroy()
 
-
     senders = list({key: value.auth_priv for key, value in users.items() if value is not None})
     receivers = list({key: value.auth_pub for key, value in users.items() if value is not None})
     if len(receivers) == 0:
@@ -570,7 +646,6 @@ def send_message(root):
     encr_check.pack()
     comp_check.pack()
     conv_check.pack()
-
 
     encr_alg_label = tk.Label(new_window, text="Encryption Algorithm")
     encr_alg_label.pack()
@@ -758,7 +833,6 @@ if __name__ == '__main__':
 
     # Set the window geometry to center the window
     root.geometry(f"{window_width}x{window_height}+{x}+{y}")
-
 
     generate_key_button = tk.Button(root, text="Generate Key Pair", command=generate_key_pair)
     generate_key_button.pack()
