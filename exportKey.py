@@ -1,23 +1,22 @@
 import tkinter as tk
-from tkinter import messagebox, filedialog, simpledialog
+from tkinter import messagebox, filedialog
 
-from cryptography.hazmat.primitives import serialization
-
-from auth.utils import format_password_for_encryption
+from User import User
 
 
 class ExportDialog(tk.Toplevel):
     def __init__(self, parent, users):
         super().__init__(parent)
-        self.users = users
-        self.title("Export RSA Keys")
+        self.users = [user for user in users.values() if user is not None]
+        self.title("Export Keys")
 
-        if len(users) == 0:
+        if len(self.users) == 0:
             messagebox.showwarning("Warning", "No users. Please add one.")
+            self.destroy()
             return
 
         self.user_var = tk.StringVar(self)
-        self.user_var.set(users[0].email)
+        self.user_var.set(self.users[0].email)
 
         user_label = tk.Label(self, text="Select User:")
         user_label.pack()
@@ -45,8 +44,8 @@ class ExportDialog(tk.Toplevel):
 
     def export_key(self):
         selected_user = self.user_var.get()
-        priv=self.priv
-        pub=self.pub
+        priv = self.priv
+        pub = self.pub
 
         if not selected_user:
             messagebox.showwarning("Warning", "Please select a user.")
@@ -55,53 +54,24 @@ class ExportDialog(tk.Toplevel):
         if not priv and not pub:
             messagebox.showwarning("Warning", "Please select at least one key type.")
             return
+        user: User = None
+        for u in self.users:
+            if u.email == selected_user:
+                user = u
 
-        user = self.users[selected_user]
-
-        if priv and not pub:
-            password = simpledialog.askstring("Password",
-                                              "Enter a password for your private key:",
-                                              show="*")
-            if user.get_private_key(password) is not None:
-                key = user.get_private_key(password)
-                key_name = f"{selected_user}_private_key.pem"
-
-                encrypt_key = format_password_for_encryption(password.encode())
-
-                pem_data = key.private_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.PKCS8,
-                    encryption_algorithm=serialization.BestAvailableEncryption(encrypt_key)
-                )
-            else:
-                messagebox.showwarning("Warning", "Incorrect password or no Private key found for this user.")
-                return
-        elif pub and not priv:
-            key = user.get_public_key()
-            key_name = f"{selected_user}_public_key.pem"
-
-            pem_data = key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.PKCS1
-            )
-        else:
-            password = simpledialog.askstring("Password",
-                                              "Enter a password for your private key:",
-                                              show="*")
-            public_key = user.get_public_key()
-            private_key=user.get_private_key(password)
-            key_name = f"{selected_user}_private+public_key.pem"
-            # pem_data = selected_user.export_rsa_private_key_to_pem()+selected_user.export_rsa_public_key_to_pem()
-            pem_data="" #TODO
+        if not user:
+            messagebox.showwarning("Warning", "User does not exist")
+            return
 
         save_path = filedialog.asksaveasfilename(defaultextension=".pem",
                                                  filetypes=[("PEM Files", "*.pem")],
-                                                 initialfile=key_name)
+                                                 initialfile='')
+        pem_data = user.export_multiple_keys_to_pem(pub, priv)
         if save_path:
-            with open(save_path, "wb") as pem_file:
+            with open(save_path, "w") as pem_file:
                 pem_file.write(pem_data)
                 if priv and not pub:
-                    selected_key_type="Private key"
+                    selected_key_type = "Private key"
                 elif not priv and pub:
                     selected_key_type = "Public key"
                 else:

@@ -183,7 +183,7 @@ class ElGamalDSA():
         dsa_public_key_pem = custom_public_key_header_footer(dsa_public_key_pem, 'DSA')
         return dsa_public_key_pem
 
-    def export_dsa_private_to_pem(self,password):
+    def export_dsa_private_to_pem(self, password):
         dsa_private_key_pem = self.DSAPrivate.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
@@ -205,18 +205,20 @@ class ElGamalDSA():
 
         return key
 
-    def import_keys_from_pem(pem_file_path:str,password):
+    def import_keys_from_pem(pem_file_path: str, password):
         with open(pem_file_path, 'r') as f:
             pem_data = f.read()
-        dsa_private_key, elgamal_private_key, dsa_public_key, elgamal_public_key = None,None,None,None
-        dsa_private_key_pem,dsa_public_key_pem,elgamal_private_key_pem,elgamal_public_key_pem = None,None,None,None
+        dsa_private_key, elgamal_private_key, dsa_public_key, elgamal_public_key = None, None, None, None
+        dsa_private_key_pem, dsa_public_key_pem, elgamal_private_key_pem, elgamal_public_key_pem = None, None, None, None
         try:
-            dsa_private_key_pem = pem_data.split('-----BEGIN DSA PRIVATE KEY-----')[1].split('-----END DSA PRIVATE KEY-----')[
+            dsa_private_key_pem = \
+            pem_data.split('-----BEGIN DSA PRIVATE KEY-----')[1].split('-----END DSA PRIVATE KEY-----')[
                 0].strip()
         except:
             pass
         try:
-            dsa_public_key_pem = pem_data.split('-----BEGIN DSA PUBLIC KEY-----')[1].split('-----END DSA PUBLIC KEY-----')[
+            dsa_public_key_pem = \
+            pem_data.split('-----BEGIN DSA PUBLIC KEY-----')[1].split('-----END DSA PUBLIC KEY-----')[
                 0].strip()
         except:
             pass
@@ -228,11 +230,12 @@ class ElGamalDSA():
             pass
         try:
             elgamal_public_key_pem = \
-                pem_data.split('-----BEGIN ELGAMAL PUBLIC KEY-----')[1].split('-----END ELGAMAL PUBLIC KEY-----')[0].strip()
+                pem_data.split('-----BEGIN ELGAMAL PUBLIC KEY-----')[1].split('-----END ELGAMAL PUBLIC KEY-----')[
+                    0].strip()
         except:
             pass
         if dsa_private_key_pem is not None:
-            dsa_private_key = ElGamalDSA.load_dsa_private_key(dsa_private_key_pem,password)
+            dsa_private_key = ElGamalDSA.load_dsa_private_key(dsa_private_key_pem, password)
         if dsa_public_key_pem is not None:
             dsa_public_key = ElGamalDSA.load_dsa_public_key(dsa_public_key_pem)
 
@@ -241,7 +244,8 @@ class ElGamalDSA():
         if elgamal_public_key_pem is not None:
             elgamal_public_key = ElGamalDSA.import_elgamal_key(elgamal_public_key_pem)
 
-        return [None,dsa_private_key,elgamal_private_key, dsa_public_key , elgamal_public_key]
+        return [None, dsa_private_key, elgamal_private_key, dsa_public_key, elgamal_public_key]
+
     @staticmethod
     def load_dsa_public_key(dsa_public_key_pem):
         dsa_public_key = serialization.load_pem_public_key(
@@ -249,10 +253,12 @@ class ElGamalDSA():
             backend=default_backend()
         )
         return dsa_public_key
+
     @staticmethod
-    def load_dsa_private_key(dsa_private_key_pem,password):
+    def load_dsa_private_key(dsa_private_key_pem, password):
         dsa_private_key = serialization.load_pem_private_key(
-            ("-----BEGIN ENCRYPTED PRIVATE KEY-----\n" + dsa_private_key_pem + "\n-----END ENCRYPTED PRIVATE KEY-----").encode(),
+            (
+                        "-----BEGIN ENCRYPTED PRIVATE KEY-----\n" + dsa_private_key_pem + "\n-----END ENCRYPTED PRIVATE KEY-----").encode(),
             password=format_password_for_encryption(password),
             backend=default_backend()
         )
@@ -267,8 +273,8 @@ if __name__ == '__main__':
     lgma = ElGamalDSA(1024)
     message = 'Proba proba proba proba'
     sign = lgma.sign(message.encode('utf-8'))
-    lgma.export_multiple_keys_to_pem(filepath='test.pem',password=password_hash.decode())
-    pem = ElGamalDSA.import_keys_from_pem(pem_file_path='test.pem',password=password_hash.decode())
+    lgma.export_multiple_keys_to_pem(filepath='test.pem', password=password_hash.decode())
+    pem = ElGamalDSA.import_keys_from_pem(pem_file_path='test.pem', password=password_hash.decode())
     el_gamal_dsa = ElGamalDSA(*(pem))
     verified = el_gamal_dsa.verify(sign, message.encode('utf-8'))
     print(verified)

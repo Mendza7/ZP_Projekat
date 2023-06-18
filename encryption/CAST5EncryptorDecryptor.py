@@ -1,14 +1,13 @@
-import os
 import secrets
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
 
 class CAST5EncryptorDecryptor:
     @staticmethod
     def encrypt(plaintext, iv, key):
-
         cipher = Cipher(algorithms.CAST5(key[:16]), modes.CBC(iv[:8]), backend=default_backend())
         plaintext = plaintext.encode('utf-8')
         encryptor = cipher.encryptor()
@@ -38,6 +37,7 @@ class CAST5EncryptorDecryptor:
         plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
 
         return plaintext
+
 
 def main():
     cast5 = CAST5EncryptorDecryptor()

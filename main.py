@@ -1,10 +1,7 @@
 import json
-import pprint
 import re
-import textwrap
 import time
 import tkinter as tk
-import warnings
 from datetime import datetime
 from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
@@ -27,7 +24,7 @@ i = 0
 
 class ImportDialog(tk.Toplevel):
     @staticmethod
-    def process_pem(pem_text,user:User):
+    def process_pem(pem_text, user: User):
         markers = {
             'RSA PRIVATE': r'-----BEGIN RSA PRIVATE KEY-----(.*?)-----END RSA PRIVATE KEY-----',
             'RSA PUBLIC': r'-----BEGIN RSA PUBLIC KEY-----(.*?)-----END RSA PUBLIC KEY-----',
@@ -43,45 +40,44 @@ class ImportDialog(tk.Toplevel):
                 match = match.strip()
                 if marker == 'RSA PRIVATE':
                     user.auth_priv = user.load_rsa_private_key(match)
-                    user.auth_alg='rsa'
+                    user.auth_alg = 'rsa'
                 elif marker == 'RSA PUBLIC':
-                    user.auth_pub = user.load_rsa_private_key(match)
-                    user.auth_alg='rsa'
+                    user.auth_pub = user.load_rsa_public_key(match)
+                    user.auth_alg = 'rsa'
                     user.key_id = User.generate_key_id(user.auth_pub, 'rsa')
 
                 elif marker == 'DSA PRIVATE':
                     if user.elGamal is None:
                         dsa = ElGamalDSA(1024)
-                        user._elGamal=dsa
-                    user.elGamal.DSAPrivate = ElGamalDSA.load_dsa_private_key(match,user.encr_pass.encode())
-                    user.auth_alg='elgamal'
+                        user._elGamal = dsa
+                    user.elGamal.DSAPrivate = ElGamalDSA.load_dsa_private_key(match, user.encr_pass.encode())
+                    user.auth_alg = 'elgamal'
 
                 elif marker == 'DSA PUBLIC':
                     if user.elGamal is None:
                         dsa = ElGamalDSA(1024)
-                        user._elGamal=dsa
+                        user._elGamal = dsa
                     user.elGamal.DSAPublic = ElGamalDSA.load_dsa_public_key(match)
-                    user.auth_alg='elgamal'
+                    user.auth_alg = 'elgamal'
 
 
                 elif marker == 'ELGAMAL PRIVATE':
                     if user.elGamal is None:
                         dsa = ElGamalDSA(1024)
-                        user._elGamal=dsa
+                        user._elGamal = dsa
                     user.elGamal.elGamalPrivate = ElGamalDSA.import_elgamal_key(match)
-                    user.auth_alg='elgamal'
+                    user.auth_alg = 'elgamal'
 
                 elif marker == 'ELGAMAL PUBLIC':
                     if user.elGamal is None:
                         dsa = ElGamalDSA(1024)
-                        user._elGamal=dsa
+                        user._elGamal = dsa
                     user.elGamal.elGamalPublic = ElGamalDSA.import_elgamal_key(match)
-                    user.auth_alg='elgamal'
+                    user.auth_alg = 'elgamal'
                     user.key_id = User.generate_key_id(int(user._elGamal._elGamalPublic.y), 'elgamal')
 
-
-
         return user
+
     def __init__(self, parent, users):
         super().__init__(parent)
         self.users = users
@@ -140,7 +136,7 @@ class ImportDialog(tk.Toplevel):
         if file_path:
             with open(file_path, "r") as pem_file:
                 pem_data = pem_file.read()
-                users[email] = ImportDialog.process_pem(pem_data,user)
+                users[email] = ImportDialog.process_pem(pem_data, user)
         self.destroy()
 
     def load_private_key_with_password(self, pem_data, password):
@@ -242,6 +238,9 @@ def generate_key_pair():
 
     submit_button = ttk.Button(new_window, text="Submit", command=submit)
     submit_button.pack()
+
+    cancel_button = ttk.Button(new_window, text="Cancel", command=cancel_action)
+    cancel_button.pack()
 
     root.mainloop()
 
@@ -805,34 +804,34 @@ def save_file(auth, encr, comp, conv, encr_alg, message, priv_key_user, pub_key_
             "message": json.dumps({"signature": signature,
                                    "message": message})
         }
-        print(json.dumps(data))
-        write_to_json('after_auth.json', data)
+        # print(json.dumps(data))
+        # write_to_json('after_auth.json', data)
 
     if comp:
         data = {
             "session": session,
             "message": compress_data(data['message'])
         }
-        print(json.dumps(data))
-        write_to_json('after_comp.json', data)
+        # print(json.dumps(data))
+        # write_to_json('after_comp.json', data)
 
     if encr:
         data['message'] = encrypt_with_session(data['message'], encr_alg, {"key": key, "iv": iv})
-        print(json.dumps(data))
-        write_to_json('after_encr.json', data)
+        # print(json.dumps(data))
+        # write_to_json('after_encr.json', data)
 
     if conv:
         data = {
             "message": convert_data(data)
         }
-        print(json.dumps(data))
-        write_to_json('after_conv.json', data)
+        # print(json.dumps(data))
+        # write_to_json('after_conv.json', data)
 
     final_message = {
         "header": header,
         "message": json.dumps(data)
     }
-    print(json.dumps(final_message))
+    # print(json.dumps(final_message))
 
     file_path = filedialog.asksaveasfilename()
     write_to_json(file_path, final_message)
@@ -845,7 +844,7 @@ def write_to_json(file_path, final_message):
 
 if __name__ == '__main__':
     root = tk.Tk()
-    root.title("PGP Email Encryption")
+    root.title("PGP")
 
     window_width = 300
     window_height = 300

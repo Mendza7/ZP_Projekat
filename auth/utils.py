@@ -34,7 +34,6 @@ def gen_key(q):
     return key
 
 
-
 def int_to_bytes(num, chunk_size_bits=31):
     chunk_size_bytes = (chunk_size_bits + 7) // 8
 
@@ -53,7 +52,7 @@ def int_to_bytes(num, chunk_size_bits=31):
 def bytes_to_int(bytes_arr, chunk_size_bits=31):
     chunk_size_bytes = (chunk_size_bits + 7) // 8
 
-    chunks = [bytes_arr[i:i+chunk_size_bytes] for i in range(0, len(bytes_arr), chunk_size_bytes)]
+    chunks = [bytes_arr[i:i + chunk_size_bytes] for i in range(0, len(bytes_arr), chunk_size_bytes)]
 
     num = 0
     for chunk in chunks:
@@ -70,6 +69,7 @@ def custom_private_key_header_footer(pem_key: str, key_type: str) -> str:
 
     return pem_key
 
+
 def custom_public_key_header_footer(pem_key: str, key_type: str) -> str:
     key_type = key_type.upper()
 
@@ -78,7 +78,8 @@ def custom_public_key_header_footer(pem_key: str, key_type: str) -> str:
 
     return pem_key
 
-def format_password_for_encryption(password:bytes):
+
+def format_password_for_encryption(password: bytes):
     salt = b'SomeRandomSalt'
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -89,6 +90,3 @@ def format_password_for_encryption(password:bytes):
     )
     encrypt_key = kdf.derive(password)
     return encrypt_key
-
-
-

@@ -10,10 +10,9 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
 
 from auth.ElGamal import ElGamalDSA
-from auth.utils import sha1_hash, custom_private_key_header_footer, custom_public_key_header_footer, \
+from auth.utils import custom_private_key_header_footer, custom_public_key_header_footer, \
     format_password_for_encryption
 from compression.utils import bin2hex, hex2bin
-
 
 
 class User:
@@ -75,10 +74,10 @@ class User:
                 key_size=key_size,
             )
             public_key = private_key.public_key()
-            self.key_id = User.generate_key_id(public_key,algorithm)
+            self.key_id = User.generate_key_id(public_key, algorithm)
             self._elGamal = None
-        elif algorithm =='elgamal':
-            self._elGamal:ElGamalDSA = ElGamalDSA(key_size)
+        elif algorithm == 'elgamal':
+            self._elGamal: ElGamalDSA = ElGamalDSA(key_size)
             self.key_id = User.generate_key_id(int(self._elGamal._elGamalPublic.y), 'elgamal')
 
         self.timestamp = time.time()
@@ -101,7 +100,7 @@ class User:
 
     def set_public_rsa_key(self, public_key):
         self._auth_pub = public_key
-        self.key_id = User.generate_key_id(public_key,'rsa')
+        self.key_id = User.generate_key_id(public_key, 'rsa')
 
     def set_private_rsa_key(self, private_key: RSAPrivateKey):
         self._auth_priv = private_key
@@ -118,45 +117,60 @@ class User:
     def verify_password(self, entered_password):
         return bcrypt.checkpw(entered_password.encode(), self._priv_pass)
 
-
-
     def export_rsa_private_key_to_pem(self):
         decode = self._auth_priv.private_bytes(encoding=serialization.Encoding.PEM,
                                                format=serialization.PrivateFormat.PKCS8,
-                                               encryption_algorithm=serialization.BestAvailableEncryption(password=format_password_for_encryption(self.encr_pass.encode()))).decode()
-        return custom_private_key_header_footer(decode,'RSA')
+                                               encryption_algorithm=serialization.BestAvailableEncryption(
+                                                   password=format_password_for_encryption(
+                                                       self.encr_pass.encode()))).decode()
+        return custom_private_key_header_footer(decode, 'RSA')
 
     def export_rsa_public_key_to_pem(self):
         decode = self._auth_pub.public_bytes(encoding=serialization.Encoding.PEM,
                                              format=serialization.PublicFormat.SubjectPublicKeyInfo).decode()
         return custom_public_key_header_footer(decode, 'RSA')
 
-    def export_multiple_keys_to_pem(self, filepath='combined_keys.pem'):
-        combined_pem = self.export_rsa_private_key_to_pem()+self.export_rsa_public_key_to_pem()
-        with open('%s' % filepath, 'w') as f:
-            f.write(combined_pem)
+    def export_multiple_keys_to_pem(self, public: bool = False, priv: bool = False):
+        if not public and not priv:
+            return
 
-    def import_rsa_key_from_pem(self,pem_file_path):
+        combined_pem = ''
+        if self.auth_alg == 'rsa':
+            if priv:
+                combined_pem += self.export_rsa_private_key_to_pem()
+            if public:
+                combined_pem += self.export_rsa_public_key_to_pem()
+        else:
+            if priv:
+                combined_pem += self.elGamal.export_dsa_private_to_pem(self.encr_pass.encode())
+                combined_pem += self.elGamal.export_elgamal_private_key_to_pem()
+            if public:
+                combined_pem += self.elGamal.export_dsa_public_to_pem()
+                combined_pem += self.elGamal.export_elgamal_public_key_to_pem()
+        return combined_pem
+
+    def import_rsa_key_from_pem(self, pem_file_path):
         with open(pem_file_path, 'r') as f:
             pem_data = f.read()
-        rsa_private_key_pem = pem_data.split('-----BEGIN RSA PRIVATE KEY-----')[1].split('-----END RSA PRIVATE KEY-----')[
+        rsa_private_key_pem = \
+        pem_data.split('-----BEGIN RSA PRIVATE KEY-----')[1].split('-----END RSA PRIVATE KEY-----')[
             0].strip()
         rsa_public_key_pem = pem_data.split('-----BEGIN RSA PUBLIC KEY-----')[1].split('-----END RSA PUBLIC KEY-----')[
             0].strip()
-        rsa_private_key,rsa_public_key = None,None
+        rsa_private_key, rsa_public_key = None, None
         if len(rsa_private_key_pem):
             rsa_private_key = self.load_rsa_private_key(rsa_private_key_pem)
         if len(rsa_public_key_pem):
             rsa_public_key = self.load_rsa_public_key(rsa_public_key_pem)
 
-        return [rsa_private_key,rsa_public_key]
+        return [rsa_private_key, rsa_public_key]
+
     @staticmethod
     def generate_key_id(public_key, alg=None):
         mask = (1 << 64) - 1
         if alg == 'rsa':
             if public_key is not None:
                 modulus = public_key.public_numbers().n
-
 
                 least_significant_64_bits = modulus & mask
                 print(least_significant_64_bits)
@@ -199,12 +213,12 @@ class User:
             try:
                 self._auth_pub.verify(hex2bin(enc_hash), message_bytes,
                                       padding.PSS(
-                                     mgf=padding.MGF1(hashes.SHA1()),
-                                     salt_length=padding.PSS.MAX_LENGTH
-                                 ), hashes.SHA1())
+                                          mgf=padding.MGF1(hashes.SHA1()),
+                                          salt_length=padding.PSS.MAX_LENGTH
+                                      ), hashes.SHA1())
                 return True
             except InvalidSignature:
-                print("Invalid Signature for user: "+self.name)
+                print("Invalid Signature for user: " + self.name)
                 return False
         else:
             return self._elGamal.verify(pickle.loads(hex2bin(enc_hash)), message_bytes)
@@ -213,15 +227,15 @@ class User:
         if self._auth_alg == 'rsa':
             return self._auth_pub.encrypt(message.encode("utf-8"),
                                           padding.OAEP(
-                                             mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                                             algorithm=hashes.SHA256(),
-                                             label=None
-                                         ))
+                                              mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                                              algorithm=hashes.SHA256(),
+                                              label=None
+                                          ))
         else:
             return pickle.dumps(self._elGamal.encrypt_public(message.encode('utf-8')))
 
     def decrypt_private(self, cypher):
-        if self._auth_alg== 'rsa':
+        if self._auth_alg == 'rsa':
             return self._auth_priv.decrypt(
                 cypher,
                 padding.OAEP(
@@ -242,7 +256,8 @@ class User:
 
     def load_rsa_private_key(self, rsa_private_key_pem):
         rsa_private_key = serialization.load_pem_private_key(
-            ("-----BEGIN ENCRYPTED PRIVATE KEY-----\n" + rsa_private_key_pem + "\n-----END ENCRYPTED PRIVATE KEY-----").encode(),
+            (
+                        "-----BEGIN ENCRYPTED PRIVATE KEY-----\n" + rsa_private_key_pem + "\n-----END ENCRYPTED PRIVATE KEY-----").encode(),
             password=format_password_for_encryption(self.encr_pass.encode()),
             backend=default_backend()
         )
@@ -254,7 +269,7 @@ if __name__ == '__main__':
     message = "Hello, World!"
     sign_message = user.sign_message(message)
     print(user.priv_pass)
-    user.elGamal.export_multiple_keys_to_pem('test.pem',password=user.encr_pass.encode())
+    user.elGamal.export_multiple_keys_to_pem('test.pem', password=user.encr_pass.encode())
     # pem = user.import_rsa_key_from_pem('test.pem')
     # user.set_public_rsa_key(pem[1])
     # user.set_private_rsa_key(pem[0])

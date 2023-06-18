@@ -1,13 +1,13 @@
 import secrets
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import padding
 from cryptography.hazmat.backends import default_backend
-import os
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
 
 class AES128EncryptorDecryptor:
     @staticmethod
-    def encrypt(plaintext,iv,key):
+    def encrypt(plaintext, iv, key):
         cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
         plaintext = plaintext.encode('utf-8')
         encryptor = cipher.encryptor()
@@ -39,16 +39,15 @@ class AES128EncryptorDecryptor:
         return unpadded_plaintext
 
 
-if __name__=='__main__':
-    iv,key = AES128EncryptorDecryptor.generate_iv_and_key()
-
+if __name__ == '__main__':
+    iv, key = AES128EncryptorDecryptor.generate_iv_and_key()
 
     plaintext = 'This is the message to be encrypted.asdasdasdasd'
-    ciphertext = AES128EncryptorDecryptor.encrypt(plaintext,iv,key)
+    ciphertext = AES128EncryptorDecryptor.encrypt(plaintext, iv, key)
 
     print("Plaintext:", plaintext)
     print("Ciphertext:", ciphertext)
 
-    decrypted_plaintext = AES128EncryptorDecryptor.decrypt(ciphertext,iv,key)
+    decrypted_plaintext = AES128EncryptorDecryptor.decrypt(ciphertext, iv, key)
 
     print("Decrypted plaintext:", decrypted_plaintext)
