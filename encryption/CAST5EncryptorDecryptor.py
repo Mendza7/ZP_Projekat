@@ -38,24 +38,3 @@ class CAST5EncryptorDecryptor:
 
         return plaintext
 
-
-def main():
-    cast5 = CAST5EncryptorDecryptor()
-
-    key, iv = cast5.generate_iv_and_key()
-
-    plaintext = "This is some text we need to encrypt"
-
-    print(f"Original plaintext: {plaintext}")
-
-    ciphertext = cast5.encrypt(plaintext, iv, key)
-
-    print(f"Ciphertext: {ciphertext}")
-
-    decrypted_plaintext = cast5.decrypt(ciphertext, iv, key)
-
-    print(f"Decrypted plaintext: {decrypted_plaintext.decode('utf-8')}")
-
-
-if __name__ == "__main__":
-    main()
