@@ -78,8 +78,7 @@ def custom_public_key_header_footer(pem_key: str, key_type: str) -> str:
 
     return pem_key
 
-def format_password_for_encryption(password):
-    password_provided = password.encode()
+def format_password_for_encryption(password:bytes):
     salt = b'SomeRandomSalt'
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -88,7 +87,7 @@ def format_password_for_encryption(password):
         iterations=100000,
         backend=default_backend()
     )
-    encrypt_key = kdf.derive(password_provided)
+    encrypt_key = kdf.derive(password)
     return encrypt_key
 
 

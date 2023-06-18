@@ -10,10 +10,10 @@ from tkinter import filedialog, messagebox, simpledialog
 from tkinter import ttk
 
 from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import serialization
 
 from User import User
+from auth.ElGamal import ElGamalDSA
 from auth.utils import format_password_for_encryption, sha1_hash, bytes_to_int
 from compression.utils import *
 from encryption.AES128EncryptorDecryptor import AES128EncryptorDecryptor
@@ -26,6 +26,62 @@ i = 0
 
 
 class ImportDialog(tk.Toplevel):
+    @staticmethod
+    def process_pem(pem_text,user:User):
+        markers = {
+            'RSA PRIVATE': r'-----BEGIN RSA PRIVATE KEY-----(.*?)-----END RSA PRIVATE KEY-----',
+            'RSA PUBLIC': r'-----BEGIN RSA PUBLIC KEY-----(.*?)-----END RSA PUBLIC KEY-----',
+            'DSA PRIVATE': r'-----BEGIN DSA PRIVATE KEY-----(.*?)-----END DSA PRIVATE KEY-----',
+            'DSA PUBLIC': r'-----BEGIN DSA PUBLIC KEY-----(.*?)-----END DSA PUBLIC KEY-----',
+            'ELGAMAL PRIVATE': r'-----BEGIN ELGAMAL PRIVATE KEY-----(.*?)-----END ELGAMAL PRIVATE KEY-----',
+            'ELGAMAL PUBLIC': r'-----BEGIN ELGAMAL PUBLIC KEY-----(.*?)-----END ELGAMAL PUBLIC KEY-----',
+        }
+
+        for marker, pattern in markers.items():
+            matches = re.findall(pattern, pem_text, re.DOTALL)
+            for match in matches:
+                match = match.strip()
+                if marker == 'RSA PRIVATE':
+                    user.auth_priv = user.load_rsa_private_key(match)
+                    user.auth_alg='rsa'
+                elif marker == 'RSA PUBLIC':
+                    user.auth_pub = user.load_rsa_private_key(match)
+                    user.auth_alg='rsa'
+                    user.key_id = User.generate_key_id(user.auth_pub, 'rsa')
+
+                elif marker == 'DSA PRIVATE':
+                    if user.elGamal is None:
+                        dsa = ElGamalDSA(1024)
+                        user._elGamal=dsa
+                    user.elGamal.DSAPrivate = ElGamalDSA.load_dsa_private_key(match,user.encr_pass.encode())
+                    user.auth_alg='elgamal'
+
+                elif marker == 'DSA PUBLIC':
+                    if user.elGamal is None:
+                        dsa = ElGamalDSA(1024)
+                        user._elGamal=dsa
+                    user.elGamal.DSAPublic = ElGamalDSA.load_dsa_public_key(match)
+                    user.auth_alg='elgamal'
+
+
+                elif marker == 'ELGAMAL PRIVATE':
+                    if user.elGamal is None:
+                        dsa = ElGamalDSA(1024)
+                        user._elGamal=dsa
+                    user.elGamal.elGamalPrivate = ElGamalDSA.import_elgamal_key(match)
+                    user.auth_alg='elgamal'
+
+                elif marker == 'ELGAMAL PUBLIC':
+                    if user.elGamal is None:
+                        dsa = ElGamalDSA(1024)
+                        user._elGamal=dsa
+                    user.elGamal.elGamalPublic = ElGamalDSA.import_elgamal_key(match)
+                    user.auth_alg='elgamal'
+                    user.key_id = User.generate_key_id(int(user._elGamal._elGamalPublic.y), 'elgamal')
+
+
+
+        return user
     def __init__(self, parent, users):
         super().__init__(parent)
         self.users = users
@@ -44,15 +100,6 @@ class ImportDialog(tk.Toplevel):
         user_menu = tk.OptionMenu(self, self.user_var, *users)
         user_menu.pack()
 
-        key_type_label = tk.Label(self, text="Select Key Type:")
-        key_type_label.pack()
-
-        # private_key_button = tk.Radiobutton(self, text="Private Key", variable=self.key_type_var, value="Private Key")
-        # private_key_button.pack()
-        #
-        # public_key_button = tk.Radiobutton(self, text="Public Key", variable=self.key_type_var, value="Public Key")
-        # public_key_button.pack()
-
         import_button = tk.Button(self, text="Import", command=self.import_key)
         import_button.pack()
 
@@ -64,11 +111,6 @@ class ImportDialog(tk.Toplevel):
 
         if not selected_user:
             messagebox.showwarning("Warning", "Please select a user.")
-            return
-        selected_key_type = self.key_type_var.get()
-
-        if not selected_key_type:
-            messagebox.showwarning("Warning", "Please select a key type.")
             return
 
         user = self.users[selected_user]
@@ -96,26 +138,9 @@ class ImportDialog(tk.Toplevel):
 
         file_path = filedialog.askopenfilename(defaultextension=".pem", filetypes=[("PEM Files", "*.pem")])
         if file_path:
-            with open(file_path, "rb") as pem_file:
+            with open(file_path, "r") as pem_file:
                 pem_data = pem_file.read()
-
-            try:
-                if selected_key_type == "Private Key":
-                    password = simpledialog.askstring("Password", "Enter the password for the private key:", show="*")
-                    private_key = self.load_private_key_with_password(pem_data, password)
-                    if private_key is not None:
-                        user.set_private_key(private_key)
-                        messagebox.showinfo("Success",
-                                            f"{selected_key_type} for {selected_user} imported successfully.")
-                    else:
-                        messagebox.showerror("Error", "Incorrect password or invalid key file.")
-                else:
-                    public_key = serialization.load_pem_public_key(pem_data)
-                    user.set_public_key(public_key)
-                    messagebox.showinfo("Success", f"{selected_key_type} for {selected_user} imported successfully.")
-            except (ValueError, TypeError) as e:
-                messagebox.showerror("Error", "Failed to import key. Invalid file or key format.")
-
+                users[email] = ImportDialog.process_pem(pem_data,user)
         self.destroy()
 
     def load_private_key_with_password(self, pem_data, password):
@@ -308,36 +333,36 @@ def display_private_key_ring():
             public_key = ""
             encrypted_private_key = ""
             elgamal_params = ""
-            if user.auth_alg == 'rsa':
+            if user._auth_alg == 'rsa':
                 if user.auth_pub:
-                    pem_pub = user.auth_pub.public_bytes(
+                    pem_pub = user._auth_pub.public_bytes(
                         encoding=serialization.Encoding.PEM,
                         format=serialization.PublicFormat.SubjectPublicKeyInfo
                     )
                     public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
 
                 if user.auth_priv:
-                    pem_priv = user.auth_priv.private_bytes(
+                    pem_priv = user._auth_priv.private_bytes(
                         encoding=serialization.Encoding.PEM,
                         format=serialization.PrivateFormat.PKCS8,
-                        encryption_algorithm=serialization.BestAvailableEncryption(user.priv_pass)
+                        encryption_algorithm=serialization.BestAvailableEncryption(user._priv_pass)
                     )
                     encrypted_private_key = ''.join(map(lambda a: a.decode('utf-8'), pem_priv.splitlines()[1:-1]))
                 alg = "RSA"
 
             elif user.auth_alg == 'elgamal':
                 if user.elGamal.DSAPublic:
-                    pem_pub = user.elGamal.DSAPublic.public_bytes(
+                    pem_pub = user._elGamal._DSAPublic.public_bytes(
                         encoding=serialization.Encoding.PEM,
                         format=serialization.PublicFormat.SubjectPublicKeyInfo
                     )
                     public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
 
                 if user.elGamal.DSAPrivate:
-                    pem_priv = user.elGamal.DSAPrivate.private_bytes(
+                    pem_priv = user._elGamal._DSAPrivate.private_bytes(
                         encoding=serialization.Encoding.PEM,
                         format=serialization.PrivateFormat.PKCS8,
-                        encryption_algorithm=serialization.BestAvailableEncryption(user.priv_pass)
+                        encryption_algorithm=serialization.BestAvailableEncryption(user._priv_pass)
                     )
                     encrypted_private_key = ''.join(map(lambda a: a.decode('utf-8'), pem_priv.splitlines()[1:-1]))
 
@@ -414,8 +439,8 @@ def display_public_key_ring():
             timestamp = str(user.timestamp).split(".")[0]
             key_id = user.key_id
             elgamal_params = ""
-            if user.auth_alg == 'rsa' and user.auth_pub:
-                pem_pub = user.auth_pub.public_bytes(
+            if user._auth_alg == 'rsa' and user.auth_pub:
+                pem_pub = user._auth_pub.public_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PublicFormat.SubjectPublicKeyInfo
                 )
@@ -424,7 +449,7 @@ def display_public_key_ring():
                 tree.insert("", tk.END, values=(timestamp, key_id, public_key, email, alg, elgamal_params))
 
             elif user.auth_alg == 'elgamal' and user.elGamal.DSAPublic:
-                pem_pub = user.elGamal.DSAPublic.public_bytes(
+                pem_pub = user._elGamal._DSAPublic.public_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PublicFormat.SubjectPublicKeyInfo
                 )
@@ -468,9 +493,10 @@ def decrypt_session(session):
 def find_user_by_id(key_id) -> User:
     user = None
     for u in users.values():
-        if u.key_id == key_id:
-            user = u
-            break
+        if u is not None:
+            if u.key_id == key_id:
+                user = u
+                break
     if user is None:
         raise ValueError
     return user
@@ -606,8 +632,8 @@ def send_message(root):
     def cancel_action():
         new_window.destroy()
 
-    senders = list({key: value.auth_priv for key, value in users.items() if value is not None})
-    receivers = list({key: value.auth_pub for key, value in users.items() if value is not None})
+    senders = list({key: value._auth_priv for key, value in users.items() if value is not None})
+    receivers = list({key: value._auth_pub for key, value in users.items() if value is not None})
     if len(receivers) == 0:
         messagebox.showwarning("Warning", "No possible receivers! Please create a user")
         return
@@ -621,7 +647,6 @@ def send_message(root):
     selected_sender.set(receivers[0])  # default value
     sender_menu = tk.OptionMenu(new_window, selected_sender, *senders)
     sender_menu.pack()
-    auth_algorithm = users[selected_sender.get()].auth_alg
 
     password_label = tk.Label(new_window, text="Private key password:")
     password_label.pack()
@@ -672,7 +697,7 @@ def send_message(root):
 
     save_button = tk.Button(new_window, text="Save file",
                             command=lambda: save_file(auth_var.get(), encr_var.get(), comp_var.get(), conv_var.get(),
-                                                      auth_algorithm, encr_alg_var.get(), input_field.get(),
+                                                      encr_alg_var.get(), input_field.get(),
                                                       selected_sender.get(), selected_receiver.get(),
                                                       password_field.get()))
     cancel_button = tk.Button(new_window, text="Cancel", command=cancel_action)
@@ -744,8 +769,9 @@ def encrypt_with_session(message, alg, session):
         return bin2hex(CAST5EncryptorDecryptor.encrypt(message, iv, key))
 
 
-def save_file(auth, encr, comp, conv, auth_alg, encr_alg, message, priv_key_user, pub_key_user, password):
+def save_file(auth, encr, comp, conv, encr_alg, message, priv_key_user, pub_key_user, password):
     sender: User = users[priv_key_user]
+    auth_alg = sender.auth_alg
     password_correct = sender.verify_password(password)
     if not password_correct:
         messagebox.showwarning("Warning", "Incorrect password. Please enter valid password.")

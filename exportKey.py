@@ -1,9 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox, filedialog, simpledialog
 
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import serialization
 
 from auth.utils import format_password_for_encryption
 
@@ -68,7 +66,7 @@ class ExportDialog(tk.Toplevel):
                 key = user.get_private_key(password)
                 key_name = f"{selected_user}_private_key.pem"
 
-                encrypt_key = format_password_for_encryption(password)
+                encrypt_key = format_password_for_encryption(password.encode())
 
                 pem_data = key.private_bytes(
                     encoding=serialization.Encoding.PEM,

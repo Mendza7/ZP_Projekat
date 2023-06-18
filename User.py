@@ -17,6 +17,55 @@ from compression.utils import bin2hex, hex2bin
 
 
 class User:
+
+    @property
+    def elGamal(self):
+        return self._elGamal
+
+    @elGamal.setter
+    def elGamal(self, value):
+        self._elGamal = value
+
+    @property
+    def auth_key_size(self):
+        return self._auth_key_size
+
+    @auth_key_size.setter
+    def auth_key_size(self, value):
+        self._auth_key_size = value
+
+    @property
+    def auth_alg(self):
+        return self._auth_alg
+
+    @auth_alg.setter
+    def auth_alg(self, value):
+        self._auth_alg = value
+
+    @property
+    def auth_pub(self):
+        return self._auth_pub
+
+    @auth_pub.setter
+    def auth_pub(self, value):
+        self._auth_pub = value
+
+    @property
+    def auth_priv(self):
+        return self._auth_priv
+
+    @auth_priv.setter
+    def auth_priv(self, value):
+        self._auth_priv = value
+
+    @property
+    def priv_pass(self):
+        return self._priv_pass
+
+    @priv_pass.setter
+    def priv_pass(self, value):
+        self._priv_pass = value
+
     def __init__(self, name=None, email=None, algorithm=None, key_size=1024, password=''):
         private_key = None
         public_key = None
@@ -26,38 +75,40 @@ class User:
                 key_size=key_size,
             )
             public_key = private_key.public_key()
-            self.key_id = User.generate_key_id(public_key,'rsa')
+            self.key_id = User.generate_key_id(public_key,algorithm)
+            self._elGamal = None
         elif algorithm =='elgamal':
-            self.elGamal:ElGamalDSA = ElGamalDSA(key_size)
-            self.key_id = User.generate_key_id(int(self.elGamal.elGamalPublic.y),'elgamal')
+            self._elGamal:ElGamalDSA = ElGamalDSA(key_size)
+            self.key_id = User.generate_key_id(int(self._elGamal._elGamalPublic.y), 'elgamal')
 
         self.timestamp = time.time()
         self.name = name
         self.email = email
-        self.auth_key_size = key_size
-        self.auth_alg = algorithm
-        self.auth_pub = public_key
-        self.auth_priv = private_key
-        self.priv_pass = self.generate_password_hash(password)
+        self._auth_key_size = key_size
+        self._auth_alg = algorithm
+        self._auth_pub = public_key
+        self._auth_priv = private_key
+        self._priv_pass = self.generate_password_hash(password)
+        self.encr_pass = password
 
     def get_public_key(self):
-        return self.auth_pub
+        return self._auth_pub
 
     def get_private_key(self, password):
         if self.verify_password(entered_password=password):
-            return self.auth_priv
+            return self._auth_priv
         return None
 
     def set_public_rsa_key(self, public_key):
-        self.auth_pub = public_key
+        self._auth_pub = public_key
         self.key_id = User.generate_key_id(public_key,'rsa')
 
     def set_private_rsa_key(self, private_key: RSAPrivateKey):
-        self.auth_priv = private_key
-        self.auth_key_size = private_key.key_size
+        self._auth_priv = private_key
+        self._auth_key_size = private_key.key_size
 
     def __repr__(self):
-        return f"{self.name},{self.email} : {self.auth_alg} {self.auth_pub} {self.auth_priv}"
+        return f"{self.name},{self.email} : {self._auth_alg} {self._auth_pub} {self._auth_priv}"
 
     def generate_password_hash(self, password):
         salt = bcrypt.gensalt()
@@ -65,19 +116,19 @@ class User:
         return password_hash
 
     def verify_password(self, entered_password):
-        return bcrypt.checkpw(entered_password.encode(), self.priv_pass)
+        return bcrypt.checkpw(entered_password.encode(), self._priv_pass)
 
 
 
     def export_rsa_private_key_to_pem(self):
-        decode = self.auth_priv.private_bytes(encoding=serialization.Encoding.PEM,
-                                              format=serialization.PrivateFormat.PKCS8,
-                                              encryption_algorithm=serialization.BestAvailableEncryption(password=format_password_for_encryption(self.priv_pass.decode()))).decode()
+        decode = self._auth_priv.private_bytes(encoding=serialization.Encoding.PEM,
+                                               format=serialization.PrivateFormat.PKCS8,
+                                               encryption_algorithm=serialization.BestAvailableEncryption(password=format_password_for_encryption(self.encr_pass.encode()))).decode()
         return custom_private_key_header_footer(decode,'RSA')
 
     def export_rsa_public_key_to_pem(self):
-        decode = self.auth_pub.public_bytes(encoding=serialization.Encoding.PEM,
-                                              format=serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+        decode = self._auth_pub.public_bytes(encoding=serialization.Encoding.PEM,
+                                             format=serialization.PublicFormat.SubjectPublicKeyInfo).decode()
         return custom_public_key_header_footer(decode, 'RSA')
 
     def export_multiple_keys_to_pem(self, filepath='combined_keys.pem'):
@@ -120,8 +171,8 @@ class User:
         timestamp = time.time()
         key_id = self.key_id
 
-        if self.auth_alg == 'rsa':
-            enc_hash = self.auth_priv.sign(
+        if self._auth_alg == 'rsa':
+            enc_hash = self._auth_priv.sign(
                 message.encode('utf-8'),
                 padding.PSS(
                     mgf=padding.MGF1(hashes.SHA1()),
@@ -132,7 +183,7 @@ class User:
 
 
         else:
-            enc_hash = pickle.dumps(self.elGamal.sign(message.encode('utf-8')))
+            enc_hash = pickle.dumps(self._elGamal.sign(message.encode('utf-8')))
 
         signature = {
             "timestamp": timestamp,
@@ -146,8 +197,8 @@ class User:
         message_bytes = message.encode('utf-8')
         if alg == 'rsa':
             try:
-                self.auth_pub.verify(hex2bin(enc_hash), message_bytes,
-                                     padding.PSS(
+                self._auth_pub.verify(hex2bin(enc_hash), message_bytes,
+                                      padding.PSS(
                                      mgf=padding.MGF1(hashes.SHA1()),
                                      salt_length=padding.PSS.MAX_LENGTH
                                  ), hashes.SHA1())
@@ -156,22 +207,22 @@ class User:
                 print("Invalid Signature for user: "+self.name)
                 return False
         else:
-            return self.elGamal.verify(pickle.loads(hex2bin(enc_hash)),message_bytes)
+            return self._elGamal.verify(pickle.loads(hex2bin(enc_hash)), message_bytes)
 
     def encrypt_public(self, message):
-        if self.auth_alg == 'rsa':
-            return self.auth_pub.encrypt(message.encode("utf-8"),
-                                         padding.OAEP(
+        if self._auth_alg == 'rsa':
+            return self._auth_pub.encrypt(message.encode("utf-8"),
+                                          padding.OAEP(
                                              mgf=padding.MGF1(algorithm=hashes.SHA256()),
                                              algorithm=hashes.SHA256(),
                                              label=None
                                          ))
         else:
-            return pickle.dumps(self.elGamal.encrypt_public(message.encode('utf-8')))
+            return pickle.dumps(self._elGamal.encrypt_public(message.encode('utf-8')))
 
     def decrypt_private(self, cypher):
-        if self.auth_alg=='rsa':
-            return self.auth_priv.decrypt(
+        if self._auth_alg== 'rsa':
+            return self._auth_priv.decrypt(
                 cypher,
                 padding.OAEP(
                     mgf=padding.MGF1(algorithm=hashes.SHA256()),
@@ -180,7 +231,7 @@ class User:
                 )
             ).decode('utf-8')
         else:
-            return self.elGamal.decrypt_private(pickle.loads(cypher))
+            return self._elGamal.decrypt_private(pickle.loads(cypher))
 
     def load_rsa_public_key(self, rsa_public_key_pem):
         rsa_public_key = serialization.load_pem_public_key(
@@ -192,19 +243,20 @@ class User:
     def load_rsa_private_key(self, rsa_private_key_pem):
         rsa_private_key = serialization.load_pem_private_key(
             ("-----BEGIN ENCRYPTED PRIVATE KEY-----\n" + rsa_private_key_pem + "\n-----END ENCRYPTED PRIVATE KEY-----").encode(),
-            password=format_password_for_encryption(self.priv_pass.decode()),
+            password=format_password_for_encryption(self.encr_pass.encode()),
             backend=default_backend()
         )
         return rsa_private_key
 
 
 if __name__ == '__main__':
-    user = User('merisa', 'm@gmail.com', 'rsa')
+    user = User('merisa', 'm@gmail.com', 'elgamal', password='123')
     message = "Hello, World!"
     sign_message = user.sign_message(message)
-    user.export_multiple_keys_to_pem('test.pem')
-    pem = user.import_rsa_key_from_pem('test.pem')
-    user.set_public_rsa_key(pem[1])
-    user.set_private_rsa_key(pem[0])
-    print(user.verify(message=message,enc_hash=sign_message['encrypted_hash'],alg='rsa'))
-    print(user)
+    print(user.priv_pass)
+    user.elGamal.export_multiple_keys_to_pem('test.pem',password=user.encr_pass.encode())
+    # pem = user.import_rsa_key_from_pem('test.pem')
+    # user.set_public_rsa_key(pem[1])
+    # user.set_private_rsa_key(pem[0])
+    # print(user.verify(message=message,enc_hash=sign_message['encrypted_hash'],alg='rsa'))
+    # print(user)
