@@ -20,7 +20,6 @@ from encryption.AES128EncryptorDecryptor import AES128EncryptorDecryptor
 from encryption.CAST5EncryptorDecryptor import CAST5EncryptorDecryptor
 from exportKey import ExportDialog
 
-
 users = {}
 algs = ['AES', 'CAST']
 i = 0
@@ -95,7 +94,6 @@ class ImportDialog(tk.Toplevel):
             user = User(name=name, email=email, algorithm='rsa', key_size=key_size, password=password)
             users[email] = user
 
-
         file_path = filedialog.askopenfilename(defaultextension=".pem", filetypes=[("PEM Files", "*.pem")])
         if file_path:
             with open(file_path, "rb") as pem_file:
@@ -159,17 +157,17 @@ def generate_key_pair():
         email = email_entry.get()
         password = password_entry.get()
         algorithm = algorithm_var.get()
-        if algorithm=='RSA':
-            algorithm='rsa'
+        if algorithm == 'RSA':
+            algorithm = 'rsa'
         else:
-            algorithm='elgamal'
+            algorithm = 'elgamal'
 
-        keysize=keysize_var.get()
+        keysize = keysize_var.get()
 
         while name is None or len(name) < 1:
-             name = simpledialog.askstring("Name", "Name can't be empty. Please enter your name.")
+            name = simpledialog.askstring("Name", "Name can't be empty. Please enter your name.")
         while email is None or not match_email_format(email) or users.get(email, None):
-             email = simpledialog.askstring("Email", "Enter valid email:")
+            email = simpledialog.askstring("Email", "Enter valid email:")
 
         while password is None or len(password) < 1:
             password = simpledialog.askstring("Password",
@@ -202,12 +200,12 @@ def generate_key_pair():
     password_entry = ttk.Entry(new_window, show="*")
     password_entry.pack()
 
-
     algorithm_label = ttk.Label(new_window, text="Algorithm:")
     algorithm_label.pack()
     algorithm_var = tk.StringVar(new_window)
     algorithm_var.set("RSA")
-    algorithm_combobox = ttk.Combobox(new_window, textvariable=algorithm_var, values=["RSA", "DSA+ElGamal"], state="readonly")
+    algorithm_combobox = ttk.Combobox(new_window, textvariable=algorithm_var, values=["RSA", "DSA+ElGamal"],
+                                      state="readonly")
     algorithm_combobox.pack()
 
     keysize_label = ttk.Label(new_window, text="Key size:")
@@ -226,6 +224,9 @@ def generate_key_pair():
 
 
 def delete_key_pair():
+    if len(users) == 0:
+        messagebox.showwarning("Warning", "No users.")
+        return
     email = simpledialog.askstring("Email", "Enter the email associated with the key pair you want to delete:")
     if email in users:
         del users[email]
@@ -279,7 +280,7 @@ def display_private_key_ring():
 
     tree = ttk.Treeview(root)
     tree["columns"] = (
-    "Timestamp", "Key ID", "Public Key", "Encrypted Private Key", "User ID", "Algorithm", "additional")
+        "Timestamp", "Key ID", "Public Key", "Encrypted Private Key", "User ID", "Algorithm", "additional")
 
     tree.heading("Timestamp", text="Timestamp")
     tree.heading("Key ID", text="Key ID")
@@ -304,40 +305,50 @@ def display_private_key_ring():
         if user is not None:
             timestamp = str(user.timestamp).split(".")[0]
             key_id = user.key_id
+            public_key = ""
+            encrypted_private_key = ""
+            elgamal_params = ""
             if user.auth_alg == 'rsa':
-                pem_pub = user.auth_pub.public_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PublicFormat.SubjectPublicKeyInfo
-                )
-                public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
-                pem_priv = user.auth_priv.private_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.PKCS8,
-                    encryption_algorithm=serialization.BestAvailableEncryption(user.priv_pass)
-                )
-                encrypted_private_key = ''.join(map(lambda a: a.decode('utf-8'), pem_priv.splitlines()[1:-1]))
+                if user.auth_pub:
+                    pem_pub = user.auth_pub.public_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo
+                    )
+                    public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
+
+                if user.auth_priv:
+                    pem_priv = user.auth_priv.private_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PrivateFormat.PKCS8,
+                        encryption_algorithm=serialization.BestAvailableEncryption(user.priv_pass)
+                    )
+                    encrypted_private_key = ''.join(map(lambda a: a.decode('utf-8'), pem_priv.splitlines()[1:-1]))
                 alg = "RSA"
-                elgamal_params = ""
-            else:
-                pem_pub = user.elGamal.DSAPublic.public_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PublicFormat.SubjectPublicKeyInfo
-                )
-                public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
-                pem_priv = user.elGamal.DSAPrivate.private_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.PKCS8,
-                    encryption_algorithm=serialization.BestAvailableEncryption(user.priv_pass)
-                )
-                encrypted_private_key = ''.join(map(lambda a: a.decode('utf-8'), pem_priv.splitlines()[1:-1]))
 
-                p = user.elGamal.elGamalPrivate.p
-                g = user.elGamal.elGamalPrivate.g
-                x = bytes_to_int(sha1_hash(str(user.elGamal.elGamalPrivate.x)))
-                y = user.elGamal.elGamalPrivate.y
+            elif user.auth_alg == 'elgamal':
+                if user.elGamal.DSAPublic:
+                    pem_pub = user.elGamal.DSAPublic.public_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo
+                    )
+                    public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
+
+                if user.elGamal.DSAPrivate:
+                    pem_priv = user.elGamal.DSAPrivate.private_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PrivateFormat.PKCS8,
+                        encryption_algorithm=serialization.BestAvailableEncryption(user.priv_pass)
+                    )
+                    encrypted_private_key = ''.join(map(lambda a: a.decode('utf-8'), pem_priv.splitlines()[1:-1]))
+
+                    p = user.elGamal.elGamalPrivate.p
+                    g = user.elGamal.elGamalPrivate.g
+                    x = bytes_to_int(sha1_hash(str(user.elGamal.elGamalPrivate.x)))
+                    y = user.elGamal.elGamalPrivate.y
+                    elgamal_params = f"p={p}\ng={g}\nx={x}\ny={y}"
                 alg = "DSA+ElGamal"
-                elgamal_params = f"p={p}\ng={g}\nx={x}\ny={y}"
-
+            else:
+                pass
             tree.insert("", tk.END,
                         values=(timestamp, key_id, public_key, encrypted_private_key, email, alg, elgamal_params))
 
@@ -402,16 +413,17 @@ def display_public_key_ring():
         if user is not None:
             timestamp = str(user.timestamp).split(".")[0]
             key_id = user.key_id
-            if user.auth_alg == 'rsa':
+            elgamal_params = ""
+            if user.auth_alg == 'rsa' and user.auth_pub:
                 pem_pub = user.auth_pub.public_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PublicFormat.SubjectPublicKeyInfo
                 )
                 public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
                 alg = "RSA"
-                elgamal_params = ""
+                tree.insert("", tk.END, values=(timestamp, key_id, public_key, email, alg, elgamal_params))
 
-            else:
+            elif user.auth_alg == 'elgamal' and user.elGamal.DSAPublic:
                 pem_pub = user.elGamal.DSAPublic.public_bytes(
                     encoding=serialization.Encoding.PEM,
                     format=serialization.PublicFormat.SubjectPublicKeyInfo
@@ -420,9 +432,11 @@ def display_public_key_ring():
                 p = user.elGamal.elGamalPrivate.p
                 g = user.elGamal.elGamalPrivate.g
                 y = user.elGamal.elGamalPrivate.y
+                elgamal_params = f"p={p}\ng={g}\ny={y}"
                 alg = "DSA+ElGamal"
-                elgamal_params = f"p = {p}\ng={g}\ny={y}"
-            tree.insert("", tk.END, values=(timestamp, key_id, public_key, email, alg, elgamal_params))
+                tree.insert("", tk.END, values=(timestamp, key_id, public_key, email, alg, elgamal_params))
+            else:
+                pass
 
     tree.bind("<Button-1>", column_click)
 
@@ -464,8 +478,12 @@ def find_user_by_id(key_id) -> User:
 
 def check_supported_algorithm(key_id, alg):
     user = find_user_by_id(key_id)
+
     if user.auth_alg == alg:
-        return True
+        if alg == 'rsa' and user.auth_priv is not None:
+            return True
+        elif alg == 'elgamal' and user.elGamal.DSAPrivate is not None:
+            return True
     return False
 
 
@@ -628,6 +646,12 @@ def send_message(root):
     encr_check = tk.Checkbutton(new_window, text="Encryption", variable=encr_var)
     comp_check = tk.Checkbutton(new_window, text="Compression", variable=comp_var)
     conv_check = tk.Checkbutton(new_window, text="Conversion", variable=conv_var)
+
+    selected_user = users[selected_sender.get()]
+    if selected_user.auth_priv is None and selected_user.elGamal.DSAPrivate is None:
+        auth_check.configure(state=tk.DISABLED)
+        message_label = ttk.Label(new_window, text="Auth feature is not available for user that has no private keys.")
+        message_label.pack()
 
     auth_check.pack()
     encr_check.pack()
