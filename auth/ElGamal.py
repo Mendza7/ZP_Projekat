@@ -181,33 +181,22 @@ class ElGamalDSA():
 
     @staticmethod
     def import_elgamal_key(pem_data):
-        # # Strip the header and footer
-        # pem_data = pem_data.replace("-----BEGIN ELGAMAL PRIVATE KEY-----\n", "")
-        # pem_data = pem_data.replace("\n-----END ELGAMAL PRIVATE KEY-----\n", "")
-        # pem_data = pem_data.replace("-----BEGIN ELGAMAL PUBLIC KEY-----\n", "")
-        # pem_data = pem_data.replace("\n-----END ELGAMAL PUBLIC KEY-----\n", "")
-
-        # Concatenate the base64 strings and decode
         key_data = pickle.loads(base64.b64decode(pem_data))
 
-        # Convert bytes back to ints
         key_data = [bytes_to_int(data) for data in key_data]
 
-        # Construct key object based on the number of parts
         if len(key_data) == 4:  # private key
             key = ElGamal.construct(tuple(key_data))
         elif len(key_data) == 3:  # public key
-            # key_data.append(None)  # append None for x (private component)
             key = ElGamal.construct(tuple(key_data))
 
         return key
 
     def import_keys_from_pem(pem_file_path):
-        # Load PEM file
         with open(pem_file_path, 'r') as f:
             pem_data = f.read()
+        dsa_private_key, elgamal_private_key, dsa_public_key, elgamal_public_key = None,None,None,None
 
-        # Separate keys
         dsa_private_key_pem = pem_data.split('-----BEGIN PRIVATE KEY-----')[1].split('-----END PRIVATE KEY-----')[
             0].strip()
         dsa_public_key_pem = pem_data.split('-----BEGIN PUBLIC KEY-----')[1].split('-----END PUBLIC KEY-----')[
@@ -217,14 +206,15 @@ class ElGamalDSA():
                 0].strip()
         elgamal_public_key_pem = \
             pem_data.split('-----BEGIN ELGAMAL PUBLIC KEY-----')[1].split('-----END ELGAMAL PUBLIC KEY-----')[0].strip()
+        if len(dsa_private_key_pem):
+            dsa_private_key = ElGamalDSA.load_dsa_private_key(dsa_private_key_pem)
+        if len(dsa_public_key_pem):
+            dsa_public_key = ElGamalDSA.load_dsa_public_key(dsa_public_key_pem)
 
-        # Load DSA keys
-        dsa_private_key = ElGamalDSA.load_dsa_private_key(dsa_private_key_pem)
-        dsa_public_key = ElGamalDSA.load_dsa_public_key(dsa_public_key_pem)
-
-        # Decode ElGamal keys
-        elgamal_private_key = ElGamalDSA.import_elgamal_key(elgamal_private_key_pem)
-        elgamal_public_key = ElGamalDSA.import_elgamal_key(elgamal_public_key_pem)
+        if len(elgamal_private_key_pem):
+            elgamal_private_key = ElGamalDSA.import_elgamal_key(elgamal_private_key_pem)
+        if len(elgamal_public_key_pem):
+            elgamal_public_key = ElGamalDSA.import_elgamal_key(elgamal_public_key_pem)
 
         return [None,dsa_private_key,elgamal_private_key, dsa_public_key , elgamal_public_key]
     @staticmethod
