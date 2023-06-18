@@ -350,6 +350,7 @@ def receive_message():
             }
             write_to_json('after_de_compr.json', data)
 
+        verified=False
         from_user = "unknown"
         if auth:
             if not isinstance(data['message'], dict):
@@ -363,7 +364,6 @@ def receive_message():
             if verified:
                 from_user = find_user_by_id(signature['key_id']).name
             write_to_json('after_de_auth.json', data)
-        # print message here
 
         data = data['message']
 
@@ -398,16 +398,11 @@ def show_received_message(message, signed, verified, from_person="", ):
     verified_label = tk.Label(popup, text=f"Verified: {verified_text}")
     verified_label.pack()
 
-    # create a Text widget
     message_text = tk.Text(popup, height=30, width=100)
-    # insert a large text message into the Text widget
     message_text.insert(tk.END, f"Received message:\n"
                                 f"{message['message']}\n"
                                 f"Time:{time}\n")
     message_text.config(state="disabled")
-
-
-    # place the Text widget in the popup window
     message_text.pack()
 
 
