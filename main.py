@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
 from User import User
-from auth.utils import format_password_for_encryption
+from auth.utils import format_password_for_encryption, sha1_hash, bytes_to_int
 from compression.utils import *
 from encryption.AES128EncryptorDecryptor import AES128EncryptorDecryptor
 from encryption.CAST5EncryptorDecryptor import CAST5EncryptorDecryptor
@@ -48,11 +48,11 @@ class ImportDialog(tk.Toplevel):
         key_type_label = tk.Label(self, text="Select Key Type:")
         key_type_label.pack()
 
-        private_key_button = tk.Radiobutton(self, text="Private Key", variable=self.key_type_var, value="Private Key")
-        private_key_button.pack()
-
-        public_key_button = tk.Radiobutton(self, text="Public Key", variable=self.key_type_var, value="Public Key")
-        public_key_button.pack()
+        # private_key_button = tk.Radiobutton(self, text="Private Key", variable=self.key_type_var, value="Private Key")
+        # private_key_button.pack()
+        #
+        # public_key_button = tk.Radiobutton(self, text="Public Key", variable=self.key_type_var, value="Public Key")
+        # public_key_button.pack()
 
         import_button = tk.Button(self, text="Import", command=self.import_key)
         import_button.pack()
@@ -94,6 +94,7 @@ class ImportDialog(tk.Toplevel):
                                                   show="*")
             user = User(name=name, email=email, algorithm='rsa', key_size=key_size, password=password)
             users[email] = user
+
 
         file_path = filedialog.askopenfilename(defaultextension=".pem", filetypes=[("PEM Files", "*.pem")])
         if file_path:
@@ -153,6 +154,7 @@ def generate_key_pair():
     new_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
     def submit():
+
         name = name_entry.get()
         email = email_entry.get()
         password = password_entry.get()
@@ -164,12 +166,12 @@ def generate_key_pair():
 
         keysize=keysize_var.get()
 
-        while len(name) < 1:
+        while name is None or len(name) < 1:
              name = simpledialog.askstring("Name", "Name can't be empty. Please enter your name.")
-        while not match_email_format(email) or users.get(email, None):
+        while email is None or not match_email_format(email) or users.get(email, None):
              email = simpledialog.askstring("Email", "Enter valid email:")
 
-        while len(password) < 1:
+        while password is None or len(password) < 1:
             password = simpledialog.askstring("Password",
                                               "Enter a password of at least 1 character in length to protect your private key:",
                                               show="*")
@@ -219,7 +221,6 @@ def generate_key_pair():
     submit_button.pack()
 
     root.mainloop()
-
 
     print(users)
 
@@ -332,10 +333,10 @@ def display_private_key_ring():
 
                 p = user.elGamal.elGamalPrivate.p
                 g = user.elGamal.elGamalPrivate.g
-                x = str(user.elGamal.elGamalPrivate.x)
+                x = bytes_to_int(sha1_hash(str(user.elGamal.elGamalPrivate.x)))
                 y = user.elGamal.elGamalPrivate.y
                 alg = "DSA+ElGamal"
-                elgamal_params = f"p = {p}\ng={g}\nx={x}\ny={y}"
+                elgamal_params = f"p={p}\ng={g}\nx={x}\ny={y}"
 
             tree.insert("", tk.END,
                         values=(timestamp, key_id, public_key, encrypted_private_key, email, alg, elgamal_params))

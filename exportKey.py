@@ -14,11 +14,12 @@ class ExportDialog(tk.Toplevel):
         self.users = users
         self.title("Export RSA Keys")
 
-        self.user_var = tk.StringVar(self)
-        self.user_var.set('New User')
+        if len(users) == 0:
+            messagebox.showwarning("Warning", "No users. Please add one.")
+            return
 
-        self.key_type_var = tk.StringVar(self)
-        self.key_type_var.set('Private Key')
+        self.user_var = tk.StringVar(self)
+        self.user_var.set(users[0].email)
 
         user_label = tk.Label(self, text="Select User:")
         user_label.pack()
@@ -29,11 +30,15 @@ class ExportDialog(tk.Toplevel):
         key_type_label = tk.Label(self, text="Select Key Type:")
         key_type_label.pack()
 
-        private_key_button = tk.Radiobutton(self, text="Private Key", variable=self.key_type_var, value="Private Key")
-        private_key_button.pack()
+        priv_var = tk.BooleanVar()
+        pub_var = tk.BooleanVar()
 
-        public_key_button = tk.Radiobutton(self, text="Public Key", variable=self.key_type_var, value="Public Key")
-        public_key_button.pack()
+        priv_check = tk.Checkbutton(self, text="Private key", variable=priv_var)
+        pub_check = tk.Checkbutton(self, text="Public key", variable=pub_var)
+        priv_check.pack()
+        pub_check.pack()
+        self.priv = priv_var
+        self.pub = pub_var
 
         export_button = tk.Button(self, text="Export", command=self.export_key)
         export_button.pack()
@@ -42,22 +47,20 @@ class ExportDialog(tk.Toplevel):
 
     def export_key(self):
         selected_user = self.user_var.get()
+        priv=self.priv
+        pub=self.pub
 
         if not selected_user:
             messagebox.showwarning("Warning", "Please select a user.")
             return
 
-        selected_key_type = self.key_type_var.get()
-
-        if not selected_key_type:
-            messagebox.showwarning("Warning", "Please select a key type.")
+        if not priv and not pub:
+            messagebox.showwarning("Warning", "Please select at least one key type.")
             return
 
         user = self.users[selected_user]
 
-
-
-        if selected_key_type == "Private Key":
+        if priv and not pub:
             password = simpledialog.askstring("Password",
                                               "Enter a password for your private key:",
                                               show="*")
@@ -73,9 +76,9 @@ class ExportDialog(tk.Toplevel):
                     encryption_algorithm=serialization.BestAvailableEncryption(encrypt_key)
                 )
             else:
-                messagebox.showwarning("Warning", "Incorrect password")
+                messagebox.showwarning("Warning", "Incorrect password or no Private key found for this user.")
                 return
-        else:
+        elif pub and not priv:
             key = user.get_public_key()
             key_name = f"{selected_user}_public_key.pem"
 
@@ -83,6 +86,15 @@ class ExportDialog(tk.Toplevel):
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.PKCS1
             )
+        else:
+            password = simpledialog.askstring("Password",
+                                              "Enter a password for your private key:",
+                                              show="*")
+            public_key = user.get_public_key()
+            private_key=user.get_private_key(password)
+            key_name = f"{selected_user}_private+public_key.pem"
+            # pem_data = selected_user.export_rsa_private_key_to_pem()+selected_user.export_rsa_public_key_to_pem()
+            pem_data="" #TODO
 
         save_path = filedialog.asksaveasfilename(defaultextension=".pem",
                                                  filetypes=[("PEM Files", "*.pem")],
@@ -90,13 +102,12 @@ class ExportDialog(tk.Toplevel):
         if save_path:
             with open(save_path, "wb") as pem_file:
                 pem_file.write(pem_data)
+                if priv and not pub:
+                    selected_key_type="Private key"
+                elif not priv and pub:
+                    selected_key_type = "Public key"
+                else:
+                    selected_key_type = "Private and Public key"
             messagebox.showinfo("Success", f"{selected_key_type} for {selected_user} exported successfully.")
 
         self.destroy()
-
-
-
-
-
-
-
