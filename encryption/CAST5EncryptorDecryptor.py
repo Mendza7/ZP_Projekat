@@ -37,7 +37,6 @@ class CAST5EncryptorDecryptor:
         unpadder = padding.PKCS7(algorithms.CAST5.block_size).unpadder()
         plaintext = unpadder.update(padded_plaintext) + unpadder.finalize()
 
-        # Return the plaintext
         return plaintext
 
 def main():

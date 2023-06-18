@@ -1,6 +1,7 @@
 import json
 import pprint
 import re
+import textwrap
 import time
 import tkinter as tk
 import warnings
@@ -198,17 +199,48 @@ def open_export_dialog():
 
 
 def display_private_key_ring():
+
+    def show_text_preview(text):
+        preview_window = tk.Toplevel(root)
+        preview_window.title("Text Preview")
+
+        text_preview = tk.Text(preview_window, height=20, width=60)
+        text_preview.insert(tk.END, text)
+        text_preview.config(state="disabled")
+        text_preview.pack()
+
+        preview_window.mainloop()
+
+    def column_click(event):
+        column = tree.identify_column(event.x)
+        item = tree.identify_row(event.y)
+        if item:
+            if column == "#3":
+                item = tree.identify_row(event.y)
+                public_key = tree.item(item)["values"][2]
+                show_text_preview(public_key)
+            elif column == "#4":
+                item = tree.identify_row(event.y)
+                encrypted_private_key = tree.item(item)["values"][3]
+                show_text_preview(encrypted_private_key)
+            elif column == "#7":
+                item = tree.identify_row(event.y)
+                elgamal_params = tree.item(item)["values"][6]
+                show_text_preview(elgamal_params)
+
     root = tk.Tk()
     root.title('Private Keyring')
 
     tree = ttk.Treeview(root)
-    tree["columns"] = ("Timestamp", "Key ID", "Public Key", "Encrypted Private Key", "User ID")
+    tree["columns"] = ("Timestamp", "Key ID", "Public Key", "Encrypted Private Key", "User ID", "Algorithm", "additional")
 
     tree.heading("Timestamp", text="Timestamp")
     tree.heading("Key ID", text="Key ID")
     tree.heading("Public Key", text="Public Key")
     tree.heading("Encrypted Private Key", text="Encrypted Private Key")
     tree.heading("User ID", text="User ID")
+    tree.heading("Algorithm", text="Algorithm")
+    tree.heading("additional", text=" ")
 
     tree["show"] = "headings"
     tree.grid(row=0, column=0, sticky="nsew")
@@ -223,40 +255,90 @@ def display_private_key_ring():
 
     for email, user in users.items():
         if user is not None:
-            timestamp = user.timestamp
+            timestamp = str(user.timestamp).split(".")[0]
             key_id = user.key_id
-            pem_pub = user.auth_pub.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-            public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
-            pem_priv = user.auth_priv.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.BestAvailableEncryption(user.priv_pass)
-            )
-            encrypted_private_key = ''.join(map(lambda a: a.decode('utf-8'), pem_priv.splitlines()[1:-1]))
+            if user.auth_alg=='rsa':
+                pem_pub = user.auth_pub.public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                )
+                public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
+                pem_priv = user.auth_priv.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.BestAvailableEncryption(user.priv_pass)
+                )
+                encrypted_private_key = ''.join(map(lambda a: a.decode('utf-8'), pem_priv.splitlines()[1:-1]))
+                alg = "RSA"
+                elgamal_params = ""
+            else:
+                pem_pub = user.elGamal.DSAPublic.public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                )
+                public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
+                pem_priv = user.elGamal.DSAPrivate.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.BestAvailableEncryption(user.priv_pass)
+                )
+                encrypted_private_key = ''.join(map(lambda a: a.decode('utf-8'), pem_priv.splitlines()[1:-1]))
 
-            tree.insert("", tk.END, values=(timestamp, key_id, public_key, encrypted_private_key, email))
-    tree.column("Public Key", width=100, anchor="w", stretch=True)
-    tree.column("Encrypted Private Key", width=300, anchor="w", stretch=True)
+                p=user.elGamal.elGamalPrivate.p
+                g=user.elGamal.elGamalPrivate.g
+                x=user.elGamal.elGamalPrivate.x
+                y=user.elGamal.elGamalPrivate.y
+                alg="DSA+ElGamal"
+                elgamal_params=f"p = {p}\ng={g}\nx={x}\ny={y}"
+
+            tree.insert("", tk.END, values=(timestamp, key_id, public_key, encrypted_private_key, email, alg, elgamal_params))
+
+    tree.bind("<Button-1>", column_click)
+
+    tree.column("Public Key", width=200, anchor="w", stretch=True)
+    tree.column("Encrypted Private Key", width=200, anchor="w", stretch=True)
+
     root.mainloop()
 
 
 def display_public_key_ring():
+    def show_text_preview(text):
+        preview_window = tk.Toplevel(root)
+        preview_window.title("Text Preview")
+
+        text_preview = tk.Text(preview_window, height=20, width=60)
+        text_preview.insert(tk.END, text)
+        text_preview.config(state="disabled")
+        text_preview.pack()
+
+        preview_window.mainloop()
+
+    def column_click(event):
+        column = tree.identify_column(event.x)
+        item = tree.identify_row(event.y)
+        if item:
+            if column == "#3":
+                item = tree.identify_row(event.y)
+                public_key = tree.item(item)["values"][2]
+                show_text_preview(public_key)
+            elif column == "#6":
+                item = tree.identify_row(event.y)
+                elgamal_params = tree.item(item)["values"][5]
+                show_text_preview(elgamal_params)
     root = tk.Tk()
     root.title('Public Keyring')
 
     tree = ttk.Treeview(root)
-    tree["columns"] = ("Timestamp", "Key ID", "Public Key", "User ID")
+    tree["columns"] = ("Timestamp", "Key ID", "Public Key", "User ID", "Algorithm", "additional")
 
     tree.heading("Timestamp", text="Timestamp")
     tree.heading("Key ID", text="Key ID")
     tree.heading("Public Key", text="Public Key")
     tree.heading("User ID", text="User ID")
+    tree.heading("Algorithm", text="Algorithm")
+    tree.heading("additional", text=" ")
 
     tree["show"] = "headings"
-
     tree.grid(row=0, column=0, sticky="nsew")
 
     scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
@@ -269,15 +351,32 @@ def display_public_key_ring():
 
     for email, user in users.items():
         if user is not None:
-            timestamp = user.timestamp
+            timestamp = str(user.timestamp).split(".")[0]
             key_id = user.key_id
-            pem_pub = user.auth_pub.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-            public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
+            if user.auth_alg=='rsa':
+                pem_pub = user.auth_pub.public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                )
+                public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
+                alg="RSA"
+                elgamal_params=""
 
-            tree.insert("", tk.END, values=(timestamp, key_id, public_key, email))
+            else:
+                pem_pub = user.elGamal.DSAPublic.public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                )
+                public_key = ''.join(map(lambda a: a.decode('utf-8'), pem_pub.splitlines()[1:-1]))
+                p = user.elGamal.elGamalPrivate.p
+                g = user.elGamal.elGamalPrivate.g
+                y = user.elGamal.elGamalPrivate.y
+                alg="DSA+ElGamal"
+                elgamal_params=f"p = {p}\ng={g}\nx={x}\ny={y}"
+            tree.insert("", tk.END, values=(timestamp, key_id, public_key, email, alg, elgamal_params))
+
+    tree.bind("<Button-1>", column_click)
+
     tree.column("Public Key", width=100, anchor="w", stretch=True)
     root.mainloop()
 
@@ -410,26 +509,21 @@ def send_message(root):
     if not len(users.items()) > 0:
         messagebox.showwarning("Warning", "No users! Please create a user")
         return
-    # New Toplevel window
     new_window = tk.Toplevel(root)
     window_width = 300
     window_height = 500
 
-    # Get the screen width and height
     screen_width = new_window.winfo_screenwidth()
     screen_height = new_window.winfo_screenheight()
 
-    # Calculate the x and y coordinates to center the window
     x = (screen_width // 2) - (window_width // 2)
     y = (screen_height // 2) - (window_height // 2)
 
-    # Set the window geometry to center the window
     new_window.geometry(f"{window_width}x{window_height}+{x}+{y}")
 
     def cancel_action():
         new_window.destroy()
 
-    # List of receivers
 
     senders = list({key: value.auth_priv for key, value in users.items() if value is not None})
     receivers = list({key: value.auth_pub for key, value in users.items() if value is not None})
@@ -437,12 +531,10 @@ def send_message(root):
         messagebox.showwarning("Warning", "No possible receivers! Please create a user")
         return
 
-    # Create from and to selection
     auth_label = tk.Label(new_window, text="Authentication")
     from_label = tk.Label(new_window, text="Sender's private key: ")
     auth_label.pack()
     from_label.pack()
-    # Password input field
 
     selected_sender = tk.StringVar(new_window)
     selected_sender.set(receivers[0])  # default value
@@ -464,7 +556,6 @@ def send_message(root):
     receiver_menu = tk.OptionMenu(new_window, selected_receiver, *receivers)
     receiver_menu.pack()
 
-    # Checkboxes
     auth_var = tk.BooleanVar()
     encr_var = tk.BooleanVar()
     comp_var = tk.BooleanVar()
@@ -480,7 +571,6 @@ def send_message(root):
     comp_check.pack()
     conv_check.pack()
 
-    # Encryption Algorithm
 
     encr_alg_label = tk.Label(new_window, text="Encryption Algorithm")
     encr_alg_label.pack()
@@ -489,7 +579,6 @@ def send_message(root):
     encr_alg_menu = tk.OptionMenu(new_window, encr_alg_var, *algs)
     encr_alg_menu.pack()
 
-    # Message text field
     input_label = tk.Label(new_window, text="Message: ")
     input_label.pack()
     input_field = tk.Entry(new_window)
@@ -504,7 +593,6 @@ def send_message(root):
     #                                                   'rsa', 'AES', 'asd123asd',
     #                                                   selected_sender, selected_receiver))
 
-    # Buttons for save and cancel
     save_button = tk.Button(new_window, text="Save file",
                             command=lambda: save_file(auth_var.get(), encr_var.get(), comp_var.get(), conv_var.get(),
                                                       auth_algorithm, encr_alg_var.get(), input_field.get(),
