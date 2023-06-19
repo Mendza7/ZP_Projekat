@@ -1,3 +1,4 @@
+import _tkinter
 import json
 import re
 import time
@@ -82,7 +83,7 @@ class ImportDialog(tk.Toplevel):
         super().__init__(parent)
         self.users = users
         self.users["New User"] = None
-        self.title("Import RSA Keys")
+        self.title("Import Keys")
 
         self.user_var = tk.StringVar(self)
         self.user_var.set('New User')
@@ -98,6 +99,16 @@ class ImportDialog(tk.Toplevel):
 
         import_button = tk.Button(self, text="Import", command=self.import_key)
         import_button.pack()
+
+
+        self.geometry("300x200")
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        window_width = self.winfo_width()
+        window_height = self.winfo_height()
+        x = (screen_width - window_width) // 2 - 100
+        y = (screen_height - window_height) // 2
+        self.geometry(f"+{x}+{y}")
 
         self.parent = parent
 
@@ -264,10 +275,14 @@ def open_import_dialog():
 
 
 def open_export_dialog():
-    export_dialog = ExportDialog(root, users)
-    export_dialog.transient(root)
-    export_dialog.grab_set()
-    root.wait_window(export_dialog)
+    try:
+        export_dialog = ExportDialog(root, users)
+        export_dialog.transient(root)
+        export_dialog.grab_set()
+        root.wait_window(export_dialog)
+
+    except _tkinter.TclError:
+        return
 
 
 def display_private_key_ring():
@@ -543,7 +558,7 @@ def receive_message():
                 messagebox.showwarning("Warning", "Incorrect password!")
                 return
             supported = check_supported_algorithm(session['key_id'], auth_alg)
-            if not supported:
+            if not supported and auth:
                 messagebox.showwarning("Warning", "Unsupported algorithm for this user!")
                 return
             data['message'] = decrypt_with_session(encr_alg, data['message'], session['key'], session['iv']).decode(
@@ -565,6 +580,11 @@ def receive_message():
             msg = data['message']
             if not isinstance(msg['message'], dict):
                 msg['message'] = json.loads(msg['message'])
+            session = data['session']
+            supported = check_supported_algorithm(session['key_id'], auth_alg)
+            if not supported and auth:
+                messagebox.showwarning("Warning", "Unsupported algorithm for this user!")
+                return
             message = msg['message']
             signature = msg['signature']
             verified = verify_signature(message, signature, auth_alg)
