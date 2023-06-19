@@ -582,7 +582,7 @@ def receive_message():
                 msg['message'] = json.loads(msg['message'])
             session = data['session']
             supported = check_supported_algorithm(session['key_id'], auth_alg)
-            if not supported and auth:
+            if not supported:
                 messagebox.showwarning("Warning", "Unsupported algorithm for this user!")
                 return
             message = msg['message']
